@@ -127,7 +127,7 @@ class SkeletonFromJSON:
 
         num_people = min(num_people, len(persons))
         print(f"[Skeleton] Parsed persons: {len(persons)}")
-        selected = random.sample(persons, num_people)
+        selected = sorted(persons, key=lambda x: x["score"])[:num_people]
 
         for i, person in enumerate(selected):
             keypoints = person["keypoints"]

@@ -11,6 +11,7 @@
 *.sln.docstates
 *.env
 *.workspace
+codex_context.txt
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
