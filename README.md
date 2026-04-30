@@ -11,6 +11,14 @@ Included nodes:
 - `PAL Pose From Structure`: convert structured LLM/UI pose descriptions into matched real pose keypoints.
 - `PAL Skeleton From JSON`: render a skeleton image from pose JSON.
 
+Current supported pose/subpose combinations:
+- kneeling: `both_knees`, `one_knee`
+- lying: `back`, `prone`, `side`
+- sitting: `chair`, `floor`
+- standing: `neutral`
+
+Note: the loaded reference dataset currently contains only the `base` variant. If `variant` shows only `base`, das ist korrekt für die aktuellen Daten.
+
 Example `Pose From Structure` input:
 
 {

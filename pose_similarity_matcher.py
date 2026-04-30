@@ -31,8 +31,11 @@ def normalize(kp):
 
     kp = np.array(kp, dtype=np.float32)
 
-    # FIX: harte Länge erzwingen
-    if len(kp) != 51:
+    # Handle different keypoint lengths (51 = 17*3, 54 = 18*3)
+    if len(kp) == 54:
+        # Take first 17 keypoints (skip the last one, usually neck/back)
+        kp = kp[:51]
+    elif len(kp) != 51:
         return None
 
     kp = kp.reshape(17, 3)
@@ -84,6 +87,30 @@ def load_reference():
             })
 
     return np.array(vectors), meta
+
+
+# --------------------------------------------------
+# POSE MAPPING TABLE
+# --------------------------------------------------
+POSE_MAPPING = {
+    # Invalid combinations -> valid alternatives
+    ("standing", "prone"): ("lying", "prone"),
+    ("standing", "supine"): ("lying", "supine"),
+    ("sitting", "prone"): ("lying", "prone"),
+    ("sitting", "supine"): ("lying", "supine"),
+    ("kneeling", "prone"): ("lying", "prone"),
+    ("kneeling", "supine"): ("lying", "supine"),
+    # Add more mappings as needed
+}
+
+def map_pose_combination(pose, subpose):
+    """Map invalid pose/subpose combinations to valid ones."""
+    key = (pose, subpose)
+    if key in POSE_MAPPING:
+        new_pose, new_subpose = POSE_MAPPING[key]
+        print(f"[PoseMapping] Mapped {pose}/{subpose} -> {new_pose}/{new_subpose}")
+        return new_pose, new_subpose
+    return pose, subpose
 
 
 # --------------------------------------------------

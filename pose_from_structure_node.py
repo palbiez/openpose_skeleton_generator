@@ -9,7 +9,8 @@ class PoseFromStructureNode:
             "required": {
                 "structure_json": ("STRING", {}),
                 "num_people": ("INT", {"default": 2, "min": 1, "max": 10}),
-                "random_seed": ("INT", {"default": -1})
+                "seed_control": (["randomize", "fixed", "incremental"], {"default": "randomize"}),
+                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff})
             }
         }
 
@@ -19,19 +20,29 @@ class PoseFromStructureNode:
 
     def __init__(self):
         self.matcher = PoseMatcher()
+        self.last_seed = 0
+
+    @staticmethod
+    def normalize_token(value):
+        if value is None:
+            return ""
+        if not isinstance(value, str):
+            value = str(value)
+        return value.strip().lower().replace(" ", "_").replace("-", "_")
 
     @staticmethod
     def normalize_attributes(attributes):
         if attributes is None:
             return []
         if isinstance(attributes, str):
-            return [attr.strip() for attr in attributes.split(",") if attr.strip()]
+            return [attr.strip().lower().replace(" ", "_").replace("-", "_") for attr in attributes.split(",") if attr.strip()]
         if isinstance(attributes, list):
-            return [str(attr).strip() for attr in attributes if str(attr).strip()]
-        return [str(attributes).strip()]
+            return [str(attr).strip().lower().replace(" ", "_").replace("-", "_") for attr in attributes if str(attr).strip()]
+        return [str(attributes).strip().lower().replace(" ", "_").replace("-", "_")]
 
     def find_candidates(self, pose, subpose, variant, attributes):
         exact = []
+        pose_variant = []
         pose_subpose = []
         pose_only = []
 
@@ -39,22 +50,26 @@ class PoseFromStructureNode:
             if item["pose"] != pose:
                 continue
 
-            item_attributes = item.get("attributes", [])
+            item_attributes = [str(attr).strip().lower().replace(" ", "_").replace("-", "_") for attr in item.get("attributes", [])]
             variant_match = not variant or item["variant"] == variant
             subpose_match = not subpose or item["subpose"] == subpose
             attributes_match = all(attr in item_attributes for attr in attributes)
 
             if variant_match and subpose_match and attributes_match:
                 exact.append(item)
-            if variant_match and subpose_match:
+            if variant_match and item["subpose"] == subpose and attributes_match:
                 pose_subpose.append(item)
+            if subpose_match and item["variant"] == variant and attributes_match:
+                pose_variant.append(item)
             pose_only.append(item)
 
-        if exact:
+        if variant and subpose:
             return exact
-        if pose_subpose:
-            return pose_subpose
-        return pose_only
+        if variant:
+            return exact or pose_variant
+        if subpose:
+            return exact or pose_subpose
+        return exact or pose_only
 
     @staticmethod
     def parse_structure(structure_json):
@@ -65,9 +80,19 @@ class PoseFromStructureNode:
             return data
         raise ValueError("Input must be a JSON object with a 'people' list or a list of person specs.")
 
-    def convert(self, structure_json, num_people, random_seed):
-        if random_seed >= 0:
-            random.seed(random_seed)
+    def convert(self, structure_json, num_people, seed_control, seed):
+        # Handle seed control like KSampler
+        if seed_control == "randomize":
+            final_seed = random.randint(0, 0xffffffffffffffff)
+        elif seed_control == "fixed":
+            final_seed = seed
+        elif seed_control == "incremental":
+            final_seed = self.last_seed + 1
+        else:
+            final_seed = random.randint(0, 0xffffffffffffffff)
+        
+        self.last_seed = final_seed
+        random.seed(final_seed)
 
         try:
             people_specs = self.parse_structure(structure_json)
@@ -85,9 +110,9 @@ class PoseFromStructureNode:
                 print(f"[PoseFromStructure] Skipping invalid person spec: {spec}")
                 continue
 
-            pose = str(spec.get("pose", "")).strip()
-            subpose = str(spec.get("subpose", "")).strip()
-            variant = str(spec.get("variant", "")).strip()
+            pose = self.normalize_token(spec.get("pose", ""))
+            subpose = self.normalize_token(spec.get("subpose", ""))
+            variant = self.normalize_token(spec.get("variant", ""))
             attributes = self.normalize_attributes(spec.get("attributes", []))
 
             if not pose:

@@ -1,6 +1,6 @@
 import json
 import random
-from .pose_similarity_matcher import PoseMatcher
+from pose_similarity_matcher import PoseMatcher, map_pose_combination
 
 # Cache for options
 _cached_options = None
@@ -45,7 +45,8 @@ class PoseSelectorNode:
                 "variant": (options["variants"], {"default": "base"}),
                 "subpose": (options["subposes"], {"default": "neutral"}),
                 "num_people": ("INT", {"default": 1, "min": 1, "max": 10}),
-                "random_seed": ("INT", {"default": -1})
+                "seed_control": (["randomize", "fixed", "incremental"], {"default": "randomize"}),
+                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff})
             }
         }
 
@@ -55,10 +56,26 @@ class PoseSelectorNode:
 
     def __init__(self):
         self.matcher = PoseMatcher()
+        self.last_seed = 0
 
-    def select(self, pose, variant, subpose, num_people, random_seed):
-        if random_seed >= 0:
-            random.seed(random_seed)
+    def select(self, pose, variant, subpose, num_people, seed_control, seed):
+        # Handle seed control like KSampler
+        if seed_control == "randomize":
+            final_seed = random.randint(0, 0xffffffffffffffff)
+        elif seed_control == "fixed":
+            final_seed = seed
+        elif seed_control == "incremental":
+            final_seed = self.last_seed + 1
+        else:
+            final_seed = random.randint(0, 0xffffffffffffffff)
+        
+        self.last_seed = final_seed
+        random.seed(final_seed)
+
+        # Apply pose mapping for invalid combinations
+        mapped_pose, mapped_subpose = map_pose_combination(pose, subpose)
+        if mapped_pose != pose or mapped_subpose != subpose:
+            pose, subpose = mapped_pose, mapped_subpose
 
         exact = []
         pose_variant = []
@@ -76,16 +93,13 @@ class PoseSelectorNode:
 
         if exact:
             candidates = exact
-        elif pose_variant:
-            print(f"[PoseSelector] Fallback to pose+variant for {pose}/{variant}/{subpose}")
-            candidates = pose_variant
         else:
-            if pose_only:
-                print(f"[PoseSelector] Fallback to pose only for {pose}/{variant}/{subpose}")
-                candidates = pose_only
-            else:
-                print(f"[PoseSelector] No matches found for {pose}/{variant}/{subpose}")
-                return ("[]",)
+            print(f"[PoseSelector] No exact match for {pose}/{variant}/{subpose}")
+            candidates = []
+
+        if not candidates:
+            print(f"[PoseSelector] The selected pose/subpose combination is not available. Please choose a supported subpose for '{pose}'.")
+            return ("[]",)
 
         if len(candidates) > num_people:
             selected = random.sample(candidates, num_people)
