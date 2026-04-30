@@ -1,6 +1,34 @@
 Comfyui Plugin for Open Pose Skeleton generation
 
+This plugin provides node-based pose selection and structured pose interpretation for ComfyUI.
 
-Extract openposes zipfile to your INPUT folder
+Required setup:
+- Place your OpenPose reference JSON files into the ComfyUI input/openpose folder.
+- The matcher loads all `.json` files from that directory.
 
-ONLY WORK IN PROGRESS 
+Included nodes:
+- `PAL Pose Selector`: choose `pose`, `variant`, `subpose` and `num_people`, then output ready-to-render skeleton JSON.
+- `PAL Pose From Structure`: convert structured LLM/UI pose descriptions into matched real pose keypoints.
+- `PAL Skeleton From JSON`: render a skeleton image from pose JSON.
+
+Example `Pose From Structure` input:
+
+{
+  "people": [
+    {"pose": "kneeling", "subpose": "one_knee", "attributes": ["torso_forward"]},
+    {"pose": "standing", "subpose": "neutral", "attributes": ["arms_crossed"]}
+  ]
+}
+
+Example output format for `PAL Skeleton From JSON`:
+
+[
+  {
+    "score": 0.0,
+    "pose": "kneeling",
+    "variant": "base",
+    "subpose": "one_knee",
+    "attributes": ["torso_forward"],
+    "keypoints": [ ... ]
+  }
+]

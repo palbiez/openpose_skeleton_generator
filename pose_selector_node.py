@@ -1,4 +1,5 @@
 import json
+import random
 from .pose_similarity_matcher import PoseMatcher
 
 # Cache for options
@@ -25,8 +26,7 @@ def get_pose_options():
             "variants": sorted(list(variants)),
             "subposes": sorted(list(subposes))
         }
-    except:
-        # Fallback if reference data not available
+    except Exception:
         _cached_options = {
             "poses": ["standing", "sitting", "kneeling", "lying"],
             "variants": ["base", "nsfw"],
@@ -57,32 +57,49 @@ class PoseSelectorNode:
         self.matcher = PoseMatcher()
 
     def select(self, pose, variant, subpose, num_people, random_seed):
-        import random
         if random_seed >= 0:
             random.seed(random_seed)
 
-        # Filter reference data by criteria
-        candidates = []
+        exact = []
+        pose_variant = []
+        pose_only = []
+
         for item in self.matcher.meta:
-            if item["pose"] == pose and item["variant"] == variant and item["subpose"] == subpose:
-                candidates.append(item)
+            if item["pose"] != pose:
+                continue
 
-        if not candidates:
-            print(f"[PoseSelector] No matches found for {pose}/{variant}/{subpose}")
-            return ("[]",)
+            if item["variant"] == variant and item["subpose"] == subpose:
+                exact.append(item)
+            if item["variant"] == variant:
+                pose_variant.append(item)
+            pose_only.append(item)
 
-        # Select num_people randomly
-        selected = random.sample(candidates, min(num_people, len(candidates)))
+        if exact:
+            candidates = exact
+        elif pose_variant:
+            print(f"[PoseSelector] Fallback to pose+variant for {pose}/{variant}/{subpose}")
+            candidates = pose_variant
+        else:
+            if pose_only:
+                print(f"[PoseSelector] Fallback to pose only for {pose}/{variant}/{subpose}")
+                candidates = pose_only
+            else:
+                print(f"[PoseSelector] No matches found for {pose}/{variant}/{subpose}")
+                return ("[]",)
 
-        # Format as expected by SkeletonFromJSON
+        if len(candidates) > num_people:
+            selected = random.sample(candidates, num_people)
+        else:
+            selected = list(candidates)
+
         result = []
         for item in selected:
             result.append({
-                "score": 0.0,  # Not applicable for manual selection
+                "score": 0.0,
                 "pose": item["pose"],
                 "variant": item["variant"],
                 "subpose": item["subpose"],
-                "attributes": item["attributes"],
+                "attributes": item.get("attributes", []),
                 "keypoints": item["keypoints"]
             })
 
