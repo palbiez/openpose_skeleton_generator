@@ -1,12 +1,13 @@
 import json
 import numpy as np
+import folder_paths
 from pathlib import Path
 
 # --------------------------------------------------
 # CONFIG
 # --------------------------------------------------
 
-REFERENCE_DIR = Path(r"C:\Users\firew\Documents\ComfyUI\input\openpose_files")
+REFERENCE_DIR = Path(folder_paths.get_input_directory()) / "openpose"
 
 # --------------------------------------------------
 # UTILS
@@ -93,9 +94,11 @@ class PoseMatcher:
 
         query = normalize(keypoints)
         if query is None:
+            print("[PoseMatcher] INVALID INPUT - not enough keypoints")
             return None, None
 
         dists = np.linalg.norm(self.vectors - query, axis=1)
+        print(f"[PoseMatcher] Matching against {len(self.vectors)} references")
         idx = np.argsort(dists)[:top_k]
 
         return idx, dists
@@ -106,6 +109,9 @@ class PoseMatcher:
     def match(self, keypoints, top_k=3):
 
         idx, dists = self.match_indices(keypoints, top_k)
+        print(f"[PoseMatcher] Top {top_k} matches:")
+        for i in idx:
+            print(f"  -> {self.meta[i]['pose']} | {self.meta[i]['subpose']} | score={dists[i]:.4f}")
 
         if idx is None:
             return None

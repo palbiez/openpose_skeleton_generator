@@ -7,6 +7,6 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "SkeletonFromJSON": "Skeleton From JSON",
-    "PoseMatcherNode": "Pose Matcher"
+    "SkeletonFromJSON": " PAL Skeleton From JSON",
+    "PoseMatcherNode": "PAL Pose Matcher"
 }

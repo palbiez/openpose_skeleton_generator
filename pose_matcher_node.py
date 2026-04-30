@@ -18,6 +18,7 @@ class PoseMatcherNode:
 
     def __init__(self):
         self.matcher = PoseMatcher()
+        print(f"[PoseMatcher] Loaded {len(self.matcher.vectors)} poses")
 
     def run(self, coco_keypoints, top_k):
 

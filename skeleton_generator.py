@@ -33,6 +33,8 @@ class SkeletonFromJSON:
     ]
 
     def draw_person(self, canvas, keypoints):
+        valid_points = sum(1 for i in range(0, len(keypoints), 3) if keypoints[i+2] > 0)
+        print(f"[Skeleton] Valid keypoints: {valid_points}/17")
         # Punkte
         for i in range(0, len(keypoints), 3):
             x, y, v = keypoints[i], keypoints[i+1], keypoints[i+2]
@@ -106,6 +108,7 @@ class SkeletonFromJSON:
 
 
     def generate(self, json_text, width, height, num_people, random_seed):
+        print(f"[Skeleton] Input JSON length: {len(json_text)}")
         if random_seed >= 0:
             random.seed(random_seed)
 
@@ -116,15 +119,17 @@ class SkeletonFromJSON:
         persons = self.extract_person_list(data)
 
         if len(persons) == 0:
+            print("[Skeleton] WARNING: No persons found in JSON")
             return (canvas,)
 
         num_people = min(num_people, len(persons))
-
+        print(f"[Skeleton] Parsed persons: {len(persons)}")
         selected = random.sample(persons, num_people)
 
         for i, person in enumerate(selected):
             keypoints = person["keypoints"]
             keypoints = self.place_person(keypoints, width, height, i)
+            print(f"[Skeleton] Drawing {num_people} persons")
             self.draw_person(canvas, keypoints)
 
         return (canvas,)
