@@ -58,7 +58,7 @@ class PoseSelectorNode:
         self.matcher = PoseMatcher()
         self.last_seed = 0
 
-def select(self, pose, variant, subpose, seed_control, seed):
+    def select(self, pose, variant, subpose, seed_control, seed):
         # Handle seed control like KSampler
         if seed_control == "randomize":
             final_seed = random.randint(0, 0xffffffffffffffff)
