@@ -1,7 +1,7 @@
 import json
 import random
-from pose_similarity_matcher import PoseMatcher
-from pose_similarity_matcher import map_pose_combination
+from .pose_similarity_matcher import PoseMatcher
+from .pose_similarity_matcher import map_pose_combination
 
 # Cache for options
 _cached_options = None
