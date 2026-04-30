@@ -7,15 +7,23 @@ import torch
 class SkeletonFromJSON:
     @classmethod
     def INPUT_TYPES(cls):
-        return {
+        inputs = {
             "required": {
-                "json_text": ("STRING", {}),
                 "width": ("INT", {"default": 768}),
                 "height": ("INT", {"default": 768}),
-                "num_people": ("INT", {"default": 2}),
-                "random_seed": ("INT", {"default": -1})
+                "num_people": ("INT", {"default": 2, "min": 1, "max": 10}),
+            },
+            "optional": {},
+            "hidden": {
+                "update": ("UPDATE", {}),
             }
         }
+        
+        # Add fixed number of pose inputs (max 10)
+        for i in range(1, 11):  # 1 to 10
+            inputs["optional"][f"pose_{i}"] = ("STRING", {"default": "[]", "multiline": False})
+        
+        return inputs
 
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "generate"
@@ -50,25 +58,13 @@ class SkeletonFromJSON:
                 cv2.line(canvas, (int(xa), int(ya)), (int(xb), int(yb)), (255,255,255), 2)
 
 
-    def place_person(self, keypoints, width, height, slot):
-        # feste Layout-Slots (keine Überlappung)
-        slots = [
-            (width * 0.3, height * 0.5),
-            (width * 0.7, height * 0.5),
-            (width * 0.5, height * 0.7),
-            (width * 0.5, height * 0.3),
-            (width * 0.2, height * 0.3),
-            (width * 0.8, height * 0.3),
-        ]
-
-        cx, cy = slots[slot % len(slots)]
-
+    def place_person_at(self, keypoints, center_x, center_y, width, height):
         # Referenz: Hüfte
         hip_x = (keypoints[11*3] + keypoints[12*3]) / 2
         hip_y = (keypoints[11*3+1] + keypoints[12*3+1]) / 2
 
-        dx = cx - hip_x
-        dy = cy - hip_y
+        dx = center_x - hip_x
+        dy = center_y - hip_y
 
         new_kp = keypoints.copy()
 
@@ -91,52 +87,48 @@ class SkeletonFromJSON:
         return new_kp
 
 
-    def extract_person_list(self, data):
-        # unterstützt verschiedene JSON-Formate
-        if isinstance(data, list):
-            return data
-
-        if isinstance(data, dict):
-            # grouped format: { "standing": [...] }
-            persons = []
-            for key in data:
-                if isinstance(data[key], list):
-                    persons.extend(data[key])
-            return persons
-
-        return []
-
-
-    def generate(self, json_text, width, height, num_people, random_seed):
-        print(f"[Skeleton] Input JSON length: {len(json_text)}")
-        if random_seed >= 0:
-            random.seed(random_seed)
-
-        data = json.loads(json_text)
-
+    def generate(self, width, height, num_people, update=None, **kwargs):
+        print(f"[Skeleton] Generating with {num_people} people")
+        
         canvas = np.zeros((height, width, 3), dtype=np.uint8)
-
-        persons = self.extract_person_list(data)
+        persons = []
+        
+        # Collect pose inputs up to num_people
+        for i in range(1, num_people + 1):
+            pose_key = f"pose_{i}"
+            if pose_key in kwargs:
+                pose_json = kwargs[pose_key]
+                if pose_json and pose_json != "[]":
+                    try:
+                        person = json.loads(pose_json)
+                        if isinstance(person, dict):
+                            persons.append(person)
+                        elif isinstance(person, list):
+                            persons.extend(person)
+                    except json.JSONDecodeError:
+                        print(f"[Skeleton] Invalid JSON for {pose_key}: {pose_json}")
 
         if len(persons) == 0:
-            print("[Skeleton] WARNING: No persons found in JSON")
+            print("[Skeleton] WARNING: No valid persons found")
             image = torch.from_numpy(canvas).float() / 255.0
             image = image.unsqueeze(0)
-
             return (image,)
 
-        num_people = min(num_people, len(persons))
-        print(f"[Skeleton] Parsed persons: {len(persons)}")
-        selected = sorted(persons, key=lambda x: x["score"])[:num_people]
-
-        for i, person in enumerate(selected):
+        print(f"[Skeleton] Drawing {len(persons)} persons")
+        
+        # Place persons from left to right
+        spacing = width / (len(persons) + 1)
+        
+        for i, person in enumerate(persons):
             keypoints = person["keypoints"]
-            keypoints = self.place_person(keypoints, width, height, i)
-            print(f"[Skeleton] Drawing {num_people} persons")
+            # Center each person horizontally
+            center_x = spacing * (i + 1)
+            center_y = height * 0.5
+            
+            keypoints = self.place_person_at(keypoints, center_x, center_y, width, height)
             self.draw_person(canvas, keypoints)
+        
         image = torch.from_numpy(canvas).float() / 255.0
-
-        # WICHTIG: Format für ComfyUI
-        image = image.unsqueeze(0)  # (1, H, W, C)
+        image = image.unsqueeze(0)
 
         return (image,)

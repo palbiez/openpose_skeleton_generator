@@ -8,7 +8,7 @@ class PoseFromStructureNode:
         return {
             "required": {
                 "structure_json": ("STRING", {}),
-                "num_people": ("INT", {"default": 2, "min": 1, "max": 10}),
+                "num_people": ("INT", {"default": 1, "min": 1, "max": 10}),
                 "seed_control": (["randomize", "fixed", "incremental"], {"default": "randomize"}),
                 "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff})
             }
@@ -70,6 +70,7 @@ class PoseFromStructureNode:
         if subpose:
             return exact or pose_subpose
         return exact or pose_only
+
 
     @staticmethod
     def parse_structure(structure_json):

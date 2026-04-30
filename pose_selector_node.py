@@ -1,6 +1,7 @@
 import json
 import random
-from pose_similarity_matcher import PoseMatcher, map_pose_combination
+from pose_similarity_matcher import PoseMatcher
+from pose_similarity_matcher import map_pose_combination
 
 # Cache for options
 _cached_options = None
@@ -44,7 +45,6 @@ class PoseSelectorNode:
                 "pose": (options["poses"], {"default": "standing"}),
                 "variant": (options["variants"], {"default": "base"}),
                 "subpose": (options["subposes"], {"default": "neutral"}),
-                "num_people": ("INT", {"default": 1, "min": 1, "max": 10}),
                 "seed_control": (["randomize", "fixed", "incremental"], {"default": "randomize"}),
                 "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff})
             }
@@ -58,7 +58,7 @@ class PoseSelectorNode:
         self.matcher = PoseMatcher()
         self.last_seed = 0
 
-    def select(self, pose, variant, subpose, num_people, seed_control, seed):
+def select(self, pose, variant, subpose, seed_control, seed):
         # Handle seed control like KSampler
         if seed_control == "randomize":
             final_seed = random.randint(0, 0xffffffffffffffff)
@@ -101,20 +101,16 @@ class PoseSelectorNode:
             print(f"[PoseSelector] The selected pose/subpose combination is not available. Please choose a supported subpose for '{pose}'.")
             return ("[]",)
 
-        if len(candidates) > num_people:
-            selected = random.sample(candidates, num_people)
-        else:
-            selected = list(candidates)
+        # Select only one person
+        selected = random.choice(candidates)
 
-        result = []
-        for item in selected:
-            result.append({
-                "score": 0.0,
-                "pose": item["pose"],
-                "variant": item["variant"],
-                "subpose": item["subpose"],
-                "attributes": item.get("attributes", []),
-                "keypoints": item["keypoints"]
-            })
+        result = {
+            "score": 0.0,
+            "pose": selected["pose"],
+            "variant": selected["variant"],
+            "subpose": selected["subpose"],
+            "attributes": selected.get("attributes", []),
+            "keypoints": selected["keypoints"]
+        }
 
         return (json.dumps(result),)
