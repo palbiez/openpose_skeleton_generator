@@ -2,7 +2,7 @@ import json
 import numpy as np
 import cv2
 import random
-
+import torch
 
 class SkeletonFromJSON:
     @classmethod
@@ -120,7 +120,10 @@ class SkeletonFromJSON:
 
         if len(persons) == 0:
             print("[Skeleton] WARNING: No persons found in JSON")
-            return (canvas,)
+            image = torch.from_numpy(canvas).float() / 255.0
+            image = image.unsqueeze(0)
+
+            return (image,)
 
         num_people = min(num_people, len(persons))
         print(f"[Skeleton] Parsed persons: {len(persons)}")
@@ -131,5 +134,9 @@ class SkeletonFromJSON:
             keypoints = self.place_person(keypoints, width, height, i)
             print(f"[Skeleton] Drawing {num_people} persons")
             self.draw_person(canvas, keypoints)
+        image = torch.from_numpy(canvas).float() / 255.0
 
-        return (canvas,)
+        # WICHTIG: Format für ComfyUI
+        image = image.unsqueeze(0)  # (1, H, W, C)
+
+        return (image,)

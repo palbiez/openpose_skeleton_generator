@@ -1,14 +1,24 @@
 import json
 import numpy as np
-import folder_paths
 from pathlib import Path
 
 # --------------------------------------------------
 # CONFIG
 # --------------------------------------------------
+import os
+from pathlib import Path
 
-REFERENCE_DIR = Path(folder_paths.get_input_directory()) / "openpose"
+try:
+    import folder_paths
+    REFERENCE_DIR = Path(folder_paths.get_input_directory()) / "openpose"
+    print("[PoseMatcher] Using ComfyUI input directory")
+except ImportError:
+    # Standalone fallback
+    REFERENCE_DIR = Path(os.path.dirname(__file__)) / ".." / ".." / "input" / "openpose"
+    REFERENCE_DIR = REFERENCE_DIR.resolve()
+    print("[PoseMatcher] Using fallback path:", REFERENCE_DIR)
 
+print(f"[PoseMatcher] Using path: {REFERENCE_DIR}")
 # --------------------------------------------------
 # UTILS
 # --------------------------------------------------
@@ -95,6 +105,10 @@ class PoseMatcher:
         query = normalize(keypoints)
         if query is None:
             print("[PoseMatcher] INVALID INPUT - not enough keypoints")
+            return None, None
+
+        if self.vectors is None or len(self.vectors) == 0:
+            print("[PoseMatcher] ERROR: No reference vectors loaded")
             return None, None
 
         dists = np.linalg.norm(self.vectors - query, axis=1)
