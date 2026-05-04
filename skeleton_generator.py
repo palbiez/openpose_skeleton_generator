@@ -3,27 +3,20 @@ import numpy as np
 import cv2
 import random
 import torch
+from .pose_registry import get_registry
 
 class SkeletonFromJSON:
     @classmethod
     def INPUT_TYPES(cls):
-        inputs = {
+        return {
             "required": {
                 "width": ("INT", {"default": 768}),
                 "height": ("INT", {"default": 768}),
-                "num_people": ("INT", {"default": 2, "min": 1, "max": 10}),
+                "num_people": ("INT", {"default": 1, "min": 1, "max": 10}),
             },
             "optional": {},
-            "hidden": {
-                "update": ("UPDATE", {}),
-            }
+            "hidden": {}
         }
-        
-        # Add fixed number of pose inputs (max 10)
-        for i in range(1, 11):  # 1 to 10
-            inputs["optional"][f"pose_{i}"] = ("STRING", {"default": "[]", "multiline": False})
-        
-        return inputs
 
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "generate"
@@ -90,23 +83,26 @@ class SkeletonFromJSON:
     def generate(self, width, height, num_people, update=None, **kwargs):
         print(f"[Skeleton] Generating with {num_people} people")
         
+        registry = get_registry()
         canvas = np.zeros((height, width, 3), dtype=np.uint8)
         persons = []
         
-        # Collect pose inputs up to num_people
+        # Collect pose IDs up to num_people
         for i in range(1, num_people + 1):
-            pose_key = f"pose_{i}"
-            if pose_key in kwargs:
-                pose_json = kwargs[pose_key]
-                if pose_json and pose_json != "[]":
-                    try:
-                        person = json.loads(pose_json)
-                        if isinstance(person, dict):
-                            persons.append(person)
-                        elif isinstance(person, list):
-                            persons.extend(person)
-                    except json.JSONDecodeError:
-                        print(f"[Skeleton] Invalid JSON for {pose_key}: {pose_json}")
+            pose_id_key = f"pose_{i}_id"
+            if pose_id_key in kwargs:
+                pose_id = kwargs[pose_id_key]
+                if isinstance(pose_id, int):
+                    keypoints = registry.get_keypoints_by_id(pose_id)
+                    if keypoints:
+                        persons.append({
+                            "keypoints": keypoints,
+                            "pose_id": pose_id,
+                        })
+                        info = registry.get_info_by_id(pose_id)
+                        print(f"[Skeleton] Added {info}")
+                    else:
+                        print(f"[Skeleton] WARNING: Pose ID {pose_id} not found")
 
         if len(persons) == 0:
             print("[Skeleton] WARNING: No valid persons found")

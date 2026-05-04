@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PAL Pose Browser</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #1e1e2e 0%, #2a2a3e 100%);
+            color: #e0e0e0;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, #61dafb 0%, #59b0d8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        header p {
+            color: #999;
+            font-size: 1.1em;
+        }
+
+        .filters {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(61, 218, 251, 0.2);
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 30px;
+            backdrop-filter: blur(10px);
+        }
+
+        .filter-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        label {
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #61dafb;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        select, input {
+            padding: 12px;
+            border: 1px solid rgba(61, 218, 251, 0.3);
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.08);
+            color: #e0e0e0;
+            font-size: 1em;
+            transition: all 0.3s ease;
+        }
+
+        select:hover, input:hover {
+            border-color: rgba(61, 218, 251, 0.6);
+            background: rgba(255, 255, 255, 0.12);
+        }
+
+        select:focus, input:focus {
+            outline: none;
+            border-color: #61dafb;
+            background: rgba(255, 255, 255, 0.15);
+            box-shadow: 0 0 10px rgba(97, 218, 251, 0.3);
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        button {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 6px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #61dafb 0%, #59b0d8 100%);
+            color: #1e1e2e;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(97, 218, 251, 0.4);
+        }
+
+        .btn-secondary {
+            background: rgba(61, 218, 251, 0.1);
+            color: #61dafb;
+            border: 1px solid rgba(61, 218, 251, 0.3);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(61, 218, 251, 0.2);
+            border-color: rgba(61, 218, 251, 0.6);
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: rgba(61, 218, 251, 0.05);
+            border-radius: 6px;
+            border-left: 3px solid #61dafb;
+        }
+
+        .stats-count {
+            font-size: 1.3em;
+            font-weight: 600;
+            color: #61dafb;
+        }
+
+        .search-input {
+            flex: 1;
+        }
+
+        .gallery {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .pose-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(61, 218, 251, 0.2);
+            border-radius: 8px;
+            overflow: hidden;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .pose-card:hover {
+            border-color: rgba(61, 218, 251, 0.6);
+            box-shadow: 0 8px 20px rgba(97, 218, 251, 0.2);
+            transform: translateY(-4px);
+        }
+
+        .pose-image {
+            width: 100%;
+            aspect-ratio: 1;
+            background: rgba(0, 0, 0, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .pose-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            background: rgba(0, 0, 0, 0.5);
+        }
+
+        .pose-info {
+            padding: 15px;
+        }
+
+        .pose-id {
+            font-size: 1.5em;
+            font-weight: 700;
+            color: #61dafb;
+            margin-bottom: 8px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .pose-meta {
+            font-size: 0.85em;
+            color: #999;
+            margin-bottom: 8px;
+        }
+
+        .pose-meta span {
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        .pose-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .btn-copy {
+            flex: 1;
+            padding: 8px;
+            background: rgba(61, 218, 251, 0.1);
+            color: #61dafb;
+            border: 1px solid rgba(61, 218, 251, 0.3);
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85em;
+            transition: all 0.2s;
+        }
+
+        .btn-copy:hover {
+            background: rgba(61, 218, 251, 0.2);
+            border-color: rgba(61, 218, 251, 0.6);
+        }
+
+        .btn-copy.copied {
+            background: rgba(76, 175, 80, 0.2);
+            border-color: #4caf50;
+            color: #4caf50;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #61dafb;
+            font-size: 1.2em;
+        }
+
+        .error {
+            background: rgba(255, 87, 34, 0.1);
+            border: 1px solid rgba(255, 87, 34, 0.3);
+            color: #ff5722;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+
+        .empty {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+
+        .empty svg {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+
+        @media (max-width: 768px) {
+            header h1 {
+                font-size: 1.8em;
+            }
+
+            .filter-row {
+                grid-template-columns: 1fr;
+            }
+
+            .gallery {
+                grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎨 PAL Pose Browser</h1>
+            <p>Browse, filter, and select poses by ID</p>
+        </header>
+
+        <div class="filters">
+            <div class="filter-row">
+                <div class="filter-group">
+                    <label for="pose-select">Pose</label>
+                    <select id="pose-select">
+                        <option value="">All Poses</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label for="variant-select">Variant</label>
+                    <select id="variant-select" disabled>
+                        <option value="">All Variants</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label for="subpose-select">Subpose</label>
+                    <select id="subpose-select" disabled>
+                        <option value="">All Subposes</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label for="search-input">Search ID</label>
+                    <input type="text" id="search-input" placeholder="Filter by ID...">
+                </div>
+            </div>
+
+            <div class="button-group">
+                <button class="btn-primary" onclick="applyFilters()">Apply Filters</button>
+                <button class="btn-secondary" onclick="resetFilters()">Reset</button>
+            </div>
+        </div>
+
+        <div class="stats">
+            <div>
+                <span class="stats-count" id="pose-count">0</span>
+                <span style="color: #999; font-size: 0.9em;"> poses found</span>
+            </div>
+        </div>
+
+        <div id="error-container"></div>
+
+        <div id="loading" class="loading" style="display: none;">
+            Loading poses...
+        </div>
+
+        <div id="gallery" class="gallery"></div>
+
+        <div id="empty" class="empty" style="display: none;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="16"></line>
+                <line x1="8" y1="12" x2="16" y2="12"></line>
+            </svg>
+            <p>No poses found. Try adjusting your filters.</p>
+        </div>
+    </div>
+
+    <script>
+        let allPoses = [];
+        let filteredPoses = [];
+
+        const poseSelect = document.getElementById('pose-select');
+        const variantSelect = document.getElementById('variant-select');
+        const subposeSelect = document.getElementById('subpose-select');
+        const searchInput = document.getElementById('search-input');
+
+        async function loadAllPoses() {
+            document.getElementById('loading').style.display = 'block';
+            try {
+                const response = await fetch('/api/poses');
+                const data = await response.json();
+                allPoses = data.poses;
+                
+                populateFilters();
+                applyFilters();
+            } catch (error) {
+                showError('Failed to load poses: ' + error.message);
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+
+        function populateFilters() {
+            // Get unique poses
+            const poses = [...new Set(allPoses.map(p => p.pose))].sort();
+            poses.forEach(pose => {
+                const option = document.createElement('option');
+                option.value = pose;
+                option.textContent = pose.charAt(0).toUpperCase() + pose.slice(1);
+                poseSelect.appendChild(option);
+            });
+        }
+
+        poseSelect.addEventListener('change', async (e) => {
+            const pose = e.target.value;
+            
+            // Update variants
+            variantSelect.innerHTML = '<option value="">All Variants</option>';
+            subposeSelect.innerHTML = '<option value="">All Subposes</option>';
+            subposeSelect.disabled = true;
+
+            if (pose) {
+                try {
+                    const response = await fetch(`/api/options?pose=${pose}`);
+                    const data = await response.json();
+                    
+                    data.variants.forEach(variant => {
+                        const option = document.createElement('option');
+                        option.value = variant;
+                        option.textContent = variant.charAt(0).toUpperCase() + variant.slice(1);
+                        variantSelect.appendChild(option);
+                    });
+                    
+                    variantSelect.disabled = false;
+                } catch (error) {
+                    console.error('Error loading variants:', error);
+                }
+            }
+        });
+
+        variantSelect.addEventListener('change', async (e) => {
+            const pose = poseSelect.value;
+            const variant = e.target.value;
+            
+            subposeSelect.innerHTML = '<option value="">All Subposes</option>';
+            
+            if (pose && variant) {
+                const subposes = allPoses
+                    .filter(p => p.pose === pose && p.variant === variant)
+                    .map(p => p.subpose);
+                
+                [...new Set(subposes)].sort().forEach(subpose => {
+                    const option = document.createElement('option');
+                    option.value = subpose;
+                    option.textContent = subpose.charAt(0).toUpperCase() + subpose.slice(1);
+                    subposeSelect.appendChild(option);
+                });
+                
+                subposeSelect.disabled = false;
+            }
+        });
+
+        async function applyFilters() {
+            const pose = poseSelect.value || null;
+            const variant = variantSelect.value || null;
+            const subpose = subposeSelect.value || null;
+            const search = searchInput.value.trim();
+
+            try {
+                let url = '/api/filter';
+                const params = new URLSearchParams();
+                if (pose) params.append('pose', pose);
+                if (variant) params.append('variant', variant);
+                if (subpose) params.append('subpose', subpose);
+                
+                if (params.toString()) {
+                    url += '?' + params.toString();
+                }
+
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                filteredPoses = data.poses;
+                
+                // Apply search filter
+                if (search) {
+                    filteredPoses = filteredPoses.filter(p => 
+                        p.id.toString().includes(search)
+                    );
+                }
+
+                renderGallery();
+                document.getElementById('loading').style.display = 'none';
+            } catch (error) {
+                showError('Error applying filters: ' + error.message);
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+
+        function renderGallery() {
+            const gallery = document.getElementById('gallery');
+            const empty = document.getElementById('empty');
+            const count = document.getElementById('pose-count');
+
+            if (filteredPoses.length === 0) {
+                gallery.innerHTML = '';
+                gallery.style.display = 'none';
+                empty.style.display = 'block';
+                count.textContent = '0';
+                return;
+            }
+
+            gallery.style.display = 'grid';
+            empty.style.display = 'none';
+            count.textContent = filteredPoses.length;
+
+            gallery.innerHTML = filteredPoses.map(pose => `
+                <div class="pose-card">
+                    <div class="pose-image">
+                        <img src="/thumbnails/${pose.id}" alt="Pose ${pose.id}" onerror="this.style.display='none'">
+                    </div>
+                    <div class="pose-info">
+                        <div class="pose-id">#${pose.id}</div>
+                        <div class="pose-meta">
+                            <span><strong>${pose.pose}</strong></span>
+                            <span>${pose.variant}</span>
+                            <span>${pose.subpose}</span>
+                        </div>
+                        <div class="pose-actions">
+                            <button class="btn-copy" onclick="copyToClipboard(${pose.id}, this)">Copy ID</button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function copyToClipboard(id, button) {
+            navigator.clipboard.writeText(id.toString()).then(() => {
+                button.classList.add('copied');
+                button.textContent = '✓ Copied!';
+                setTimeout(() => {
+                    button.classList.remove('copied');
+                    button.textContent = 'Copy ID';
+                }, 2000);
+            });
+        }
+
+        function resetFilters() {
+            poseSelect.value = '';
+            variantSelect.value = '';
+            variantSelect.disabled = true;
+            subposeSelect.value = '';
+            subposeSelect.disabled = true;
+            searchInput.value = '';
+            applyFilters();
+        }
+
+        function showError(message) {
+            const container = document.getElementById('error-container');
+            container.innerHTML = `<div class="error">${message}</div>`;
+            setTimeout(() => {
+                container.innerHTML = '';
+            }, 5000);
+        }
+
+        // Load on startup
+        loadAllPoses();
+    </script>
+</body>
+</html>
