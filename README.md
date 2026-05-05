@@ -11,7 +11,22 @@ This ComfyUI custom node package provides comprehensive pose selection, matching
 
 2. Place the custom node folder in your ComfyUI `custom_nodes` directory.
 
-3. Restart ComfyUI. The pose browser will automatically start on port 8189.
+3. **Optional but recommended**: Pre-build the pose registry cache for faster startup:
+   ```bash
+   cd ComfyUI/custom_nodes/PAL_open_skeleton_generator
+   python build_pose_cache.py
+   ```
+   This will scan all your pose files and create a cache file for instant loading.
+
+4. Restart ComfyUI. The pose browser will automatically start on port 8189.
+
+## Cache Management
+
+The pose registry automatically caches scanned poses for faster loading. If you add new pose files:
+
+- The cache updates automatically when ComfyUI starts (if pose files are newer than cache)
+- Or manually rebuild the cache: `python build_pose_cache.py`
+- To clear the cache: `python build_pose_cache.py --clean`
 
 ## OpenPose Data Setup
 

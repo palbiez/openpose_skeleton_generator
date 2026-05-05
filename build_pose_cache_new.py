@@ -2,10 +2,12 @@
 """
 Pre-build pose registry cache for faster ComfyUI startup.
 
-This script scans the OpenPose directory and creates a cached registry file
-that can be loaded quickly by the pose browser.
+Usage:
+    python build_pose_cache.py          # Build/update cache
+    python build_pose_cache.py --clean  # Remove cache file
 """
 
+import argparse
 import json
 import os
 import sys
@@ -16,7 +18,17 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from pose_registry import PoseRegistry
 
-def main():
+def clean_cache():
+    """Remove the cache file."""
+    cache_file = Path(__file__).parent / "pose_registry_cache.json"
+    if cache_file.exists():
+        cache_file.unlink()
+        print(f"Removed cache file: {cache_file}")
+    else:
+        print("No cache file found")
+
+def build_cache():
+    """Build the pose registry cache."""
     print("Building pose registry cache...")
     
     # Force fresh scan by temporarily renaming cache file
@@ -45,6 +57,17 @@ def main():
         if temp_cache and temp_cache.exists():
             temp_cache.rename(cache_file)
             print("Restored original cache")
+
+def main():
+    parser = argparse.ArgumentParser(description="Build pose registry cache")
+    parser.add_argument('--clean', action='store_true', help='Remove cache file instead of building')
+    
+    args = parser.parse_args()
+    
+    if args.clean:
+        clean_cache()
+    else:
+        build_cache()
 
 if __name__ == "__main__":
     main()

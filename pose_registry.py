@@ -32,8 +32,83 @@ class PoseRegistry:
         self.poses_by_id: Dict[int, Dict] = {}
         self.index_by_filter: Dict[Tuple, List[int]] = {}
         
-        self._load_poses()
+        # Try to load from cache first
+        if self._load_from_cache():
+            print(f"[PoseRegistry] Loaded {len(self.poses)} poses from cache")
+        else:
+            self._load_poses()
+            self._save_to_cache()
+        
         self._build_index()
+    
+    def _load_from_cache(self) -> bool:
+        """Try to load poses from cache file. Returns True if successful."""
+        cache_file = Path(__file__).parent / "pose_registry_cache.json"
+        if not cache_file.exists():
+            return False
+        
+        try:
+            with open(cache_file, 'r', encoding='utf-8') as f:
+                cache_data = json.load(f)
+            
+            # Check if cache is still valid by comparing file modification times
+            openpose_dir = self._get_openpose_dir()
+            if openpose_dir.exists():
+                cache_mtime = cache_file.stat().st_mtime
+                newest_png = 0
+                for png_path in openpose_dir.rglob("*.png"):
+                    png_mtime = png_path.stat().st_mtime
+                    newest_png = max(newest_png, png_mtime)
+                
+                if newest_png > cache_mtime:
+                    print("[PoseRegistry] Cache is outdated, rescanning...")
+                    return False
+            
+            # Load from cache
+            self.poses = cache_data["poses"]
+            self.poses_by_id = cache_data["poses_by_id"]
+            self.index_by_filter = cache_data.get("index_by_filter", {})
+            
+            # Convert string keys back to tuples for index_by_filter
+            if self.index_by_filter:
+                self.index_by_filter = {tuple(k) if isinstance(k, list) else k: v 
+                                      for k, v in self.index_by_filter.items()}
+            
+            return True
+            
+        except Exception as e:
+            print(f"[PoseRegistry] Error loading cache: {e}")
+            return False
+    
+    def _save_to_cache(self):
+        """Save current poses to cache file."""
+        try:
+            cache_file = Path(__file__).parent / "pose_registry_cache.json"
+            
+            # Convert poses to serializable format
+            serializable_poses = []
+            for pose in self.poses:
+                pose_copy = pose.copy()
+                serializable_poses.append(pose_copy)
+            
+            # Convert tuple keys to lists for JSON serialization
+            serializable_index = {list(k) if isinstance(k, tuple) else k: v 
+                                for k, v in self.index_by_filter.items()}
+            
+            cache_data = {
+                "poses": serializable_poses,
+                "poses_by_id": self.poses_by_id,
+                "index_by_filter": serializable_index,
+                "total_poses": len(self.poses)
+            }
+            
+            with open(cache_file, 'w', encoding='utf-8') as f:
+                json.dump(cache_data, f, indent=2, ensure_ascii=False)
+            
+            print(f"[PoseRegistry] Saved cache with {len(self.poses)} poses")
+            
+        except Exception as e:
+            print(f"[PoseRegistry] Error saving cache: {e}")
     
     def _get_openpose_dir(self) -> Path:
         """Get OpenPose directory from ComfyUI models folder."""

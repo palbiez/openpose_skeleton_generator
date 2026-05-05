@@ -16,6 +16,9 @@ codex_context.txt
 # Generated thumbnails
 web/pose_thumbnails/
 
+# Pose registry cache
+pose_registry_cache.json
+
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
 
