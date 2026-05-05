@@ -70,14 +70,22 @@ class PoseRegistry:
                 else:
                     # Allow fallback to the parent of the ComfyUI user directory
                     candidate = input_dir / ".." / "models"
-                    candidate = candidate.resolve()
                     if candidate.exists():
                         models_dir = candidate
             except Exception:
                 pass
 
         if models_dir is None:
-            print("[PoseRegistry] ERROR: could not resolve ComfyUI models directory from folder_paths")
+            # Fallback from current package location: search up for a sibling models/openpose folder.
+            current_dir = Path(__file__).resolve()
+            for parent in current_dir.parents:
+                candidate = parent / "models"
+                if candidate.exists() and (candidate / "openpose").exists():
+                    models_dir = candidate
+                    break
+
+        if models_dir is None:
+            print("[PoseRegistry] ERROR: could not resolve ComfyUI models directory from folder_paths or package location")
             return Path("")
 
         openpose_dir = models_dir / "openpose"
@@ -167,8 +175,9 @@ class PoseRegistry:
         return display, bone_structure, bone_structure_full
 
     def _scan_openpose_folder(self, openpose_dir: Path, pose_attributes):
-        grouped = {}
-
+        # Create one pose per PNG file instead of grouping
+        pose_id = 1
+        
         for png_path in openpose_dir.rglob("*.png"):
             name = png_path.name.lower()
             if name.startswith("cover") or name.startswith("example") or name.startswith("thumb"):
@@ -177,18 +186,15 @@ class PoseRegistry:
                 continue
 
             pose, gender, variant, subpose = self._derive_pose_metadata(png_path, openpose_dir)
-            key = (pose, gender, variant, subpose)
-            grouped.setdefault(key, []).append(png_path)
-
-        pose_id = 1
-        for (pose, gender, variant, subpose), png_paths in sorted(grouped.items()):
-            representative = self._choose_best_preview(png_paths)
-            if representative is None:
-                continue
-
-            display_image, bone_structure, bone_structure_full = self._find_associated_images(representative)
-            keypoints = self._extract_keypoints_from_png(representative) or []
+            
+            # Use filename as pose name if metadata extraction failed
+            if pose == "unknown":
+                pose = self._normalize_token(Path(name).stem)
+            
+            display_image, bone_structure, bone_structure_full = self._find_associated_images(png_path)
+            keypoints = self._extract_keypoints_from_png(png_path) or []
             attributes = pose_attributes.get((pose, variant, subpose), [])
+            
             pose_data = {
                 "id": pose_id,
                 "pose": pose,
@@ -197,18 +203,18 @@ class PoseRegistry:
                 "subpose": subpose,
                 "attributes": attributes,
                 "keypoints": keypoints,
-                "png_path": str(representative),
-                "display_image": str(display_image) if display_image else str(representative),
+                "png_path": str(png_path),
+                "display_image": str(display_image) if display_image else str(png_path),
                 "bone_structure_path": str(bone_structure) if bone_structure else "",
                 "bone_structure_full_path": str(bone_structure_full) if bone_structure_full else "",
-                "source_file": representative.name,
+                "source_file": png_path.name,
             }
 
             self.poses.append(pose_data)
             self.poses_by_id[pose_id] = pose_data
             pose_id += 1
 
-        print(f"[PoseRegistry] Loaded {len(self.poses)} poses")
+        print(f"[PoseRegistry] Scanned {len(self.poses)} PNG files")
 
     def _extract_keypoints_from_png(self, png_path: Path) -> Optional[List[float]]:
         """Extract keypoints from PNG file EXIF or info."""

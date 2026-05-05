@@ -1,42 +1,250 @@
-Comfyui Plugin for Open Pose Skeleton generation
+# PAL OpenPose Skeleton Generator for ComfyUI
 
-This plugin provides node-based pose selection and structured pose interpretation for ComfyUI.
+This ComfyUI custom node package provides comprehensive pose selection, matching, and skeleton generation capabilities using OpenPose data. It includes an integrated web browser for pose exploration and selection.
 
-Required setup:
-- Place your OpenPose reference JSON files into the ComfyUI input/openpose folder.
-- The matcher loads all `.json` files from that directory.
+## Installation
 
-Included nodes:
-- `PAL Pose Selector`: choose `pose`, `variant`, `subpose` and `num_people`, then output ready-to-render skeleton JSON.
-- `PAL Pose From Structure`: convert structured LLM/UI pose descriptions into matched real pose keypoints.
-- `PAL Skeleton From JSON`: render a skeleton image from pose JSON.
+1. Install the package dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-Current supported pose/subpose combinations:
-- kneeling: `both_knees`, `one_knee`
-- lying: `back`, `prone`, `side`
-- sitting: `chair`, `floor`
-- standing: `neutral`
+2. Place the custom node folder in your ComfyUI `custom_nodes` directory.
 
-Note: the loaded reference dataset currently contains only the `base` variant. If `variant` shows only `base`, das ist korrekt für die aktuellen Daten.
+3. Restart ComfyUI. The pose browser will automatically start on port 8189.
 
-Example `Pose From Structure` input:
+## OpenPose Data Setup
 
+### Where to Place Pose Files
+
+Place your OpenPose JSON and PNG files in the ComfyUI `models/openpose` directory.
+
+The plugin supports the original nested EasyDiffusion / webui structure and scans recursively through subfolders.
+
+Supported layout examples:
+
+```
+ComfyUI/
+├── models/
+│   └── openpose/
+│       └── kneeling/
+│           └── F/
+│               └── nsfw/
+│                   └── all_fours/
+│                       └── all_fours_001/
+│                           ├── all_fours_001.png
+│                           ├── all_fours_001_keypoints.json
+│                           ├── all_fours_001_bone_structure.png
+│                           └── all_fours_001_bone_structure_full.png
+```
+
+or flatter nested examples like:
+
+```
+ComfyUI/
+├── models/
+│   └── openpose/
+│       └── kneeling/
+│           └── F/
+│               └── nsfw/
+│                   └── all_fours_001.png
+│                   └── all_fours_001_keypoints.json
+```
+
+The plugin automatically scans this directory on startup and builds an index of available poses.
+
+If the browser server is started from a separate process and no poses appear, the server may not see ComfyUI's `folder_paths` module. In that case, set:
+
+```bash
+export OPENPOSE_MODELS_PATH="C:/Users/firew/Documents/ComfyUI/models/openpose"
+```
+
+or point it to your OpenPose root in the Stable Diffusion webui install.
+
+If you change the folder structure or want to force a fresh scan, delete `models/openpose/pose_index.json` and restart ComfyUI.
+
+### File Naming Convention
+
+When nested folders are used, the scanner derives pose metadata from the path segments:
+
+- `{pose}` from the first folder below `openpose`
+- `{gender}` from the second folder
+- `{variant}` from the third folder
+- `{subpose}` from the fourth folder
+
+If your files are not fully nested, the scanner also falls back to tokenized filenames like `{pose}_{gender}_{variant}_{subpose}_{id}.png`.
+
+Examples:
+- `kneeling_female_base_one_knee_001.png`
+- `kneeling/F/nsfw/all_fours/all_fours_001.png`
+- `kneeling/F/nsfw/all_fours/all_fours_001/all_fours_001.png`
+- `standing_male_base_neutral_042_keypoints.json`
+
+### Automatic Scanning
+
+The pose registry automatically scans the `models/openpose` directory when ComfyUI loads the custom nodes. No manual scanning is required.
+
+## Using the Pose Browser
+
+The pose browser automatically starts when ComfyUI loads and is accessible at:
+
+- **Local access**: http://localhost:8189
+- **Network access**: http://YOUR_COMFYUI_IP:8189 (e.g., http://192.168.130.23:8189)
+
+### Browser Features
+
+- **Browse poses**: Filter by pose type, gender, variant, and subpose
+- **Search**: Text search across pose metadata
+- **Pagination**: Navigate through large pose collections
+- **Image preview**: View pose thumbnails and bone structure images
+- **Pose selection**: Click poses to get their ID for use in ComfyUI nodes
+
+### Environment Variables
+
+You can customize the browser host and port:
+
+```bash
+export OPENPOSE_BROWSER_HOST=0.0.0.0  # Default: 0.0.0.0 (all interfaces)
+export OPENPOSE_BROWSER_PORT=8189     # Default: 8189
+```
+
+## ComfyUI Nodes
+
+### PAL Pose Selector
+
+Select poses by category and generate skeleton JSON.
+
+**Inputs:**
+- `pose`: Pose type (kneeling, lying, sitting, standing)
+- `variant`: Pose variant (base)
+- `subpose`: Specific pose variation (both_knees, one_knee, back, prone, side, chair, floor, neutral)
+- `num_people`: Number of people in the pose (1-4)
+
+**Outputs:**
+- `skeleton_json`: Ready-to-render pose keypoints in JSON format
+
+### PAL Pose Matcher
+
+Match poses based on similarity to reference keypoints.
+
+**Inputs:**
+- `reference_keypoints`: JSON string with reference pose keypoints
+- `max_results`: Maximum number of matches to return (1-10)
+
+**Outputs:**
+- `matched_poses`: JSON array of matched poses with similarity scores
+
+### PAL Pose From Structure
+
+Convert structured pose descriptions into matched keypoints.
+
+**Inputs:**
+- `pose_structure`: JSON describing pose requirements
+- `max_results`: Maximum matches to return (1-5)
+
+**Outputs:**
+- `matched_poses`: Array of matched pose JSON objects
+
+Example input structure:
+```json
 {
   "people": [
     {"pose": "kneeling", "subpose": "one_knee", "attributes": ["torso_forward"]},
     {"pose": "standing", "subpose": "neutral", "attributes": ["arms_crossed"]}
   ]
 }
+```
 
-Example output format for `PAL Skeleton From JSON`:
+### PAL Pose Structure by ID
 
-[
-  {
-    "score": 0.0,
-    "pose": "kneeling",
-    "variant": "base",
-    "subpose": "one_knee",
-    "attributes": ["torso_forward"],
-    "keypoints": [ ... ]
-  }
-]
+Resolve a pose ID from the browser into file paths and metadata.
+
+**Inputs:**
+- `pose_id`: Numeric ID from the pose browser
+- `preferred_image`: Image type preference (auto, bone_structure, bone_structure_full)
+
+**Outputs:**
+- `selected_path`: Path to the selected image file
+- `full_path`: Path to bone structure full image
+- `pose_info`: JSON metadata about the pose
+
+### PAL Skeleton From JSON
+
+Render skeleton images from pose keypoints.
+
+**Inputs:**
+- `skeleton_json`: JSON array of pose keypoints
+- `width`: Image width (default: 512)
+- `height`: Image height (default: 512)
+- `line_width`: Skeleton line thickness (default: 2)
+
+**Outputs:**
+- `image`: Rendered skeleton image
+
+### PAL OpenPose Browser Launcher
+
+Manually launch the pose browser (normally starts automatically).
+
+**Outputs:**
+- `status`: Launch status message
+
+## Supported Pose Categories
+
+### Kneeling
+- `both_knees`: Both knees on ground
+- `one_knee`: One knee up
+
+### Lying
+- `back`: Lying on back
+- `prone`: Lying face down
+- `side`: Lying on side
+
+### Sitting
+- `chair`: Sitting on chair
+- `floor`: Sitting on floor
+
+### Standing
+- `neutral`: Standing upright
+
+## Example Workflows
+
+### Basic Pose Selection
+1. Use **PAL Pose Selector** to choose pose categories
+2. Connect to **PAL Skeleton From JSON** to render the skeleton
+
+### Browser-Based Selection
+1. Open the pose browser at http://localhost:8189
+2. Browse and find a pose, note its ID
+3. Use **PAL Pose Structure by ID** with the ID to get file paths
+4. Use the paths in your ComfyUI workflow
+
+### Pose Matching
+1. Provide reference keypoints as JSON
+2. Use **PAL Pose Matcher** to find similar poses
+3. Select from matched results
+
+## Troubleshooting
+
+### Browser Not Accessible
+- Check if port 8189 is available: `netstat -an | findstr :8189`
+- Verify ComfyUI started without errors
+- Check firewall settings for port 8189
+
+### No Poses Found
+- Ensure OpenPose files are in `ComfyUI/models/openpose`
+- Check file naming follows the convention
+- Restart ComfyUI to trigger re-scanning
+
+### Import Errors
+- Install dependencies: `pip install -r requirements.txt`
+- Ensure you're using Python 3.8+
+
+## Requirements
+
+- Python 3.8+
+- ComfyUI
+- OpenPose JSON and PNG files in `models/openpose` directory
+
+## License
+
+This project is open source. See individual file headers for licensing information.

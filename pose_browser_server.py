@@ -10,6 +10,7 @@ import uvicorn
 
 app = FastAPI(title="PAL OpenPose Browser")
 registry = get_registry()
+print(f"[Server] Registry loaded with {len(registry.poses)} poses")
 
 static_dir = Path(__file__).parent / "web" / "pose_browser"
 
@@ -37,7 +38,16 @@ def filter_poses(
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=500)
 ):
-    matching_ids = registry.search(pose=pose, variant=variant, subpose=subpose)
+    print(f"[API] Filter request: pose={pose}, variant={variant}, subpose={subpose}, search={search}")
+    print(f"[API] Registry has {len(registry.poses)} poses")
+    
+    # Use direct access instead of search method for debugging
+    if pose is None and variant is None and subpose is None:
+        matching_ids = [p["id"] for p in registry.poses]
+    else:
+        matching_ids = registry.search(pose=pose, variant=variant, subpose=subpose)
+    
+    print(f"[API] Found {len(matching_ids)} matching IDs")
     poses = []
     normalized_search = search.strip().lower() if isinstance(search, str) else None
 
