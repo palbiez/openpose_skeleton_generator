@@ -1,527 +1,379 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="de">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PAL Pose Browser</title>
+    <title>PAL OpenPose Browser</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
+        * { box-sizing: border-box; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #1e1e2e 0%, #2a2a3e 100%);
-            color: #e0e0e0;
+            margin: 0;
+            font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #11131a;
+            color: #e6edf8;
             min-height: 100vh;
-            padding: 20px;
         }
-
-        .container {
-            max-width: 1400px;
+        .page {
+            max-width: 1320px;
             margin: 0 auto;
+            padding: 24px;
         }
-
         header {
             text-align: center;
-            margin-bottom: 40px;
-        }
-
-        header h1 {
-            font-size: 2.5em;
-            margin-bottom: 10px;
-            background: linear-gradient(135deg, #61dafb 0%, #59b0d8 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        header p {
-            color: #999;
-            font-size: 1.1em;
-        }
-
-        .filters {
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(61, 218, 251, 0.2);
-            border-radius: 12px;
-            padding: 30px;
             margin-bottom: 30px;
-            backdrop-filter: blur(10px);
         }
-
-        .filter-row {
+        header h1 {
+            margin-bottom: 8px;
+            font-size: 2.3rem;
+            color: #82c7ff;
+        }
+        header p {
+            margin: 0 auto;
+            max-width: 760px;
+            color: #a8b6d8;
+            line-height: 1.6;
+        }
+        .filters {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+            margin: 24px 0;
+        }
+        .filter-card {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(99, 169, 255, 0.16);
+            border-radius: 16px;
+            padding: 18px;
+        }
+        .filter-card label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 0.84rem;
+            font-weight: 700;
+            color: #9fc9ff;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+        select, input {
+            width: 100%;
+            border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.12);
+            padding: 12px 14px;
+            background: rgba(255,255,255,0.04);
+            color: #f3f7ff;
+            font-size: 0.95rem;
+        }
+        select:focus, input:focus { outline: none; border-color: #5ba1ff; }
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 12px;
+        }
+        button {
+            border: none;
+            border-radius: 12px;
+            padding: 12px 16px;
+            cursor: pointer;
+            font-weight: 700;
+            transition: transform 0.16s ease, background 0.16s ease;
+        }
+        button:hover { transform: translateY(-1px); }
+        .btn-primary { background: #6cb4ff; color: #0f172a; }
+        .btn-secondary { background: rgba(255,255,255,0.08); color: #d3e1ff; }
+        .stats {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: center;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(109, 159, 247, 0.18);
+            border-radius: 16px;
+            padding: 16px 18px;
             margin-bottom: 20px;
         }
-
-        .filter-group {
+        .stats strong { color: #c0e0ff; }
+        .gallery {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 18px;
+        }
+        .card {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 20px;
+            overflow: hidden;
             display: flex;
             flex-direction: column;
         }
-
-        label {
-            font-weight: 600;
-            margin-bottom: 8px;
-            color: #61dafb;
-            font-size: 0.9em;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+        .card img {
+            width: 100%;
+            height: 240px;
+            object-fit: contain;
+            background: #0e1118;
         }
-
-        select, input {
-            padding: 12px;
-            border: 1px solid rgba(61, 218, 251, 0.3);
-            border-radius: 6px;
-            background: rgba(255, 255, 255, 0.08);
-            color: #e0e0e0;
-            font-size: 1em;
-            transition: all 0.3s ease;
-        }
-
-        select:hover, input:hover {
-            border-color: rgba(61, 218, 251, 0.6);
-            background: rgba(255, 255, 255, 0.12);
-        }
-
-        select:focus, input:focus {
-            outline: none;
-            border-color: #61dafb;
-            background: rgba(255, 255, 255, 0.15);
-            box-shadow: 0 0 10px rgba(97, 218, 251, 0.3);
-        }
-
-        .button-group {
+        .card-body {
+            padding: 16px;
             display: flex;
-            gap: 10px;
-            justify-content: center;
+            flex-direction: column;
+            gap: 12px;
         }
-
-        button {
-            padding: 12px 30px;
-            border: none;
-            border-radius: 6px;
-            font-size: 1em;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, #61dafb 0%, #59b0d8 100%);
-            color: #1e1e2e;
-        }
-
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(97, 218, 251, 0.4);
-        }
-
-        .btn-secondary {
-            background: rgba(61, 218, 251, 0.1);
-            color: #61dafb;
-            border: 1px solid rgba(61, 218, 251, 0.3);
-        }
-
-        .btn-secondary:hover {
-            background: rgba(61, 218, 251, 0.2);
-            border-color: rgba(61, 218, 251, 0.6);
-        }
-
-        .stats {
+        .card-title {
             display: flex;
             justify-content: space-between;
+            gap: 10px;
             align-items: center;
-            margin-bottom: 20px;
-            padding: 15px;
-            background: rgba(61, 218, 251, 0.05);
-            border-radius: 6px;
-            border-left: 3px solid #61dafb;
         }
-
-        .stats-count {
-            font-size: 1.3em;
-            font-weight: 600;
-            color: #61dafb;
+        .card-title h2 {
+            font-size: 1.1rem;
+            margin: 0;
+            color: #dfe9ff;
         }
-
-        .search-input {
-            flex: 1;
+        .tag {
+            background: rgba(108, 180, 255, 0.13);
+            color: #bbddff;
+            border-radius: 999px;
+            padding: 6px 10px;
+            font-size: 0.82rem;
+            white-space: nowrap;
         }
-
-        .gallery {
+        .meta {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 20px;
-            margin-top: 20px;
-        }
-
-        .pose-card {
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(61, 218, 251, 0.2);
-            border-radius: 8px;
-            overflow: hidden;
-            transition: all 0.3s ease;
-            cursor: pointer;
-        }
-
-        .pose-card:hover {
-            border-color: rgba(61, 218, 251, 0.6);
-            box-shadow: 0 8px 20px rgba(97, 218, 251, 0.2);
-            transform: translateY(-4px);
-        }
-
-        .pose-image {
-            width: 100%;
-            aspect-ratio: 1;
-            background: rgba(0, 0, 0, 0.3);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-        }
-
-        .pose-image img {
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-            background: rgba(0, 0, 0, 0.5);
-        }
-
-        .pose-info {
-            padding: 15px;
-        }
-
-        .pose-id {
-            font-size: 1.5em;
-            font-weight: 700;
-            color: #61dafb;
-            margin-bottom: 8px;
-            font-family: 'Courier New', monospace;
-        }
-
-        .pose-meta {
-            font-size: 0.85em;
-            color: #999;
-            margin-bottom: 8px;
-        }
-
-        .pose-meta span {
-            display: block;
-            margin-bottom: 4px;
-        }
-
-        .pose-actions {
-            display: flex;
             gap: 8px;
-            margin-top: 10px;
+            font-size: 0.88rem;
+            color: #a7b7d6;
         }
-
+        .meta span { display: block; }
+        .attributes {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .attribute {
+            background: rgba(109, 159, 247, 0.12);
+            color: #bdd8ff;
+            border-radius: 999px;
+            padding: 6px 10px;
+            font-size: 0.78rem;
+        }
+        .actions {
+            display: flex;
+            gap: 10px;
+        }
         .btn-copy {
             flex: 1;
-            padding: 8px;
-            background: rgba(61, 218, 251, 0.1);
-            color: #61dafb;
-            border: 1px solid rgba(61, 218, 251, 0.3);
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 0.85em;
-            transition: all 0.2s;
+            background: rgba(255,255,255,0.08);
+            color: #dce9ff;
         }
-
-        .btn-copy:hover {
-            background: rgba(61, 218, 251, 0.2);
-            border-color: rgba(61, 218, 251, 0.6);
-        }
-
-        .btn-copy.copied {
-            background: rgba(76, 175, 80, 0.2);
-            border-color: #4caf50;
-            color: #4caf50;
-        }
-
-        .loading {
+        .btn-copy.copied { background: #91f2a1; color: #0f172a; }
+        .empty, .error, .loading {
+            border-radius: 18px;
+            background: rgba(255,255,255,0.04);
+            padding: 32px;
             text-align: center;
-            padding: 40px;
-            color: #61dafb;
-            font-size: 1.2em;
+            color: #b0c7ff;
         }
-
-        .error {
-            background: rgba(255, 87, 34, 0.1);
-            border: 1px solid rgba(255, 87, 34, 0.3);
-            color: #ff5722;
-            padding: 15px;
-            border-radius: 6px;
-            margin-bottom: 20px;
-        }
-
-        .empty {
-            text-align: center;
-            padding: 60px 20px;
-            color: #999;
-        }
-
-        .empty svg {
-            width: 80px;
-            height: 80px;
-            margin-bottom: 20px;
-            opacity: 0.5;
-        }
-
-        @media (max-width: 768px) {
-            header h1 {
-                font-size: 1.8em;
-            }
-
-            .filter-row {
-                grid-template-columns: 1fr;
-            }
-
-            .gallery {
-                grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-            }
-        }
+        .error { border: 1px solid rgba(255,80,80,0.25); color: #ffb3b3; }
     </style>
 </head>
 <body>
-    <div class="container">
+    <div class="page">
         <header>
-            <h1>🎨 PAL Pose Browser</h1>
-            <p>Browse, filter, and select poses by ID</p>
+            <h1>PAL OpenPose Browser</h1>
+            <p>Durchsuche deine OpenPose-DB, filtere nach Pose / Variant / Subpose und kopiere die gewünschte ID für den ComfyUI-Node.</p>
         </header>
 
         <div class="filters">
-            <div class="filter-row">
-                <div class="filter-group">
-                    <label for="pose-select">Pose</label>
-                    <select id="pose-select">
-                        <option value="">All Poses</option>
-                    </select>
-                </div>
-
-                <div class="filter-group">
-                    <label for="variant-select">Variant</label>
-                    <select id="variant-select" disabled>
-                        <option value="">All Variants</option>
-                    </select>
-                </div>
-
-                <div class="filter-group">
-                    <label for="subpose-select">Subpose</label>
-                    <select id="subpose-select" disabled>
-                        <option value="">All Subposes</option>
-                    </select>
-                </div>
-
-                <div class="filter-group">
-                    <label for="search-input">Search ID</label>
-                    <input type="text" id="search-input" placeholder="Filter by ID...">
-                </div>
+            <div class="filter-card">
+                <label for="pose-select">Pose</label>
+                <select id="pose-select"><option value="">Alle</option></select>
             </div>
-
-            <div class="button-group">
-                <button class="btn-primary" onclick="applyFilters()">Apply Filters</button>
-                <button class="btn-secondary" onclick="resetFilters()">Reset</button>
+            <div class="filter-card">
+                <label for="variant-select">Variant</label>
+                <select id="variant-select" disabled><option value="">Alle</option></select>
             </div>
+            <div class="filter-card">
+                <label for="subpose-select">Subpose</label>
+                <select id="subpose-select" disabled><option value="">Alle</option></select>
+            </div>
+            <div class="filter-card">
+                <label for="search-input">Suche</label>
+                <input id="search-input" type="text" placeholder="ID, Pose, Variant, Subpose...">
+            </div>
+        </div>
+
+        <div class="controls">
+            <button class="btn-primary" type="button" onclick="applyFilters(1)">Filter anwenden</button>
+            <button class="btn-secondary" type="button" onclick="resetFilters()">Zurücksetzen</button>
         </div>
 
         <div class="stats">
-            <div>
-                <span class="stats-count" id="pose-count">0</span>
-                <span style="color: #999; font-size: 0.9em;"> poses found</span>
-            </div>
+            <div><strong id="pose-count">0</strong> Posen gefunden</div>
+            <div id="summary-text">ID kopieren und im ComfyUI-Pose-Node einfügen.</div>
         </div>
 
         <div id="error-container"></div>
-
-        <div id="loading" class="loading" style="display: none;">
-            Loading poses...
-        </div>
-
+        <div id="loading" class="loading" style="display:none;">Lade Posen...</div>
         <div id="gallery" class="gallery"></div>
-
-        <div id="empty" class="empty" style="display: none;">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="10"></circle>
-                <line x1="12" y1="8" x2="12" y2="16"></line>
-                <line x1="8" y1="12" x2="16" y2="12"></line>
-            </svg>
-            <p>No poses found. Try adjusting your filters.</p>
-        </div>
+        <div id="empty" class="empty" style="display:none;">Keine Posen gefunden. Passe die Filter an.</div>
     </div>
 
     <script>
-        let allPoses = [];
-        let filteredPoses = [];
-
         const poseSelect = document.getElementById('pose-select');
         const variantSelect = document.getElementById('variant-select');
         const subposeSelect = document.getElementById('subpose-select');
         const searchInput = document.getElementById('search-input');
+        const gallery = document.getElementById('gallery');
+        const loading = document.getElementById('loading');
+        const empty = document.getElementById('empty');
+        const poseCount = document.getElementById('pose-count');
+        let currentPage = 1;
+        let pageSize = 60;
+        let totalPages = 0;
+        let currentResults = [];
 
-        async function loadAllPoses() {
-            document.getElementById('loading').style.display = 'block';
+        async function loadFilterOptions() {
+            showLoading(true);
             try {
-                const response = await fetch('/api/poses');
+                const response = await fetch('/api/options');
                 const data = await response.json();
-                allPoses = data.poses;
-                
-                populateFilters();
-                applyFilters();
-            } catch (error) {
-                showError('Failed to load poses: ' + error.message);
-                document.getElementById('loading').style.display = 'none';
+                populateSelect(poseSelect, data.poses, 'Alle');
+            } catch (err) {
+                showError('Filteroptionen konnten nicht geladen werden.');
+            } finally {
+                showLoading(false);
             }
         }
 
-        function populateFilters() {
-            // Get unique poses
-            const poses = [...new Set(allPoses.map(p => p.pose))].sort();
-            poses.forEach(pose => {
+        function populateSelect(select, items = [], placeholder) {
+            select.innerHTML = `<option value="">${placeholder}</option>`;
+            items.forEach(item => {
                 const option = document.createElement('option');
-                option.value = pose;
-                option.textContent = pose.charAt(0).toUpperCase() + pose.slice(1);
-                poseSelect.appendChild(option);
+                option.value = item;
+                option.textContent = item;
+                select.appendChild(option);
             });
         }
 
-        poseSelect.addEventListener('change', async (e) => {
-            const pose = e.target.value;
-            
-            // Update variants
-            variantSelect.innerHTML = '<option value="">All Variants</option>';
-            subposeSelect.innerHTML = '<option value="">All Subposes</option>';
+        poseSelect.addEventListener('change', async () => {
+            const pose = poseSelect.value;
+            variantSelect.innerHTML = '<option value="">Alle</option>';
+            subposeSelect.innerHTML = '<option value="">Alle</option>';
+            variantSelect.disabled = true;
             subposeSelect.disabled = true;
 
             if (pose) {
                 try {
-                    const response = await fetch(`/api/options?pose=${pose}`);
+                    const response = await fetch(`/api/options?pose=${encodeURIComponent(pose)}`);
                     const data = await response.json();
-                    
-                    data.variants.forEach(variant => {
-                        const option = document.createElement('option');
-                        option.value = variant;
-                        option.textContent = variant.charAt(0).toUpperCase() + variant.slice(1);
-                        variantSelect.appendChild(option);
-                    });
-                    
+                    populateSelect(variantSelect, data.variants, 'Alle');
                     variantSelect.disabled = false;
-                } catch (error) {
-                    console.error('Error loading variants:', error);
+                    if (data.subposes?.length) {
+                        subposeSelect.disabled = false;
+                    }
+                } catch (err) {
+                    console.error(err);
                 }
             }
+            applyFilters(1);
         });
 
-        variantSelect.addEventListener('change', async (e) => {
+        variantSelect.addEventListener('change', async () => {
             const pose = poseSelect.value;
-            const variant = e.target.value;
-            
-            subposeSelect.innerHTML = '<option value="">All Subposes</option>';
-            
+            const variant = variantSelect.value;
+            subposeSelect.innerHTML = '<option value="">Alle</option>';
+            subposeSelect.disabled = true;
+
             if (pose && variant) {
-                const subposes = allPoses
-                    .filter(p => p.pose === pose && p.variant === variant)
-                    .map(p => p.subpose);
-                
-                [...new Set(subposes)].sort().forEach(subpose => {
-                    const option = document.createElement('option');
-                    option.value = subpose;
-                    option.textContent = subpose.charAt(0).toUpperCase() + subpose.slice(1);
-                    subposeSelect.appendChild(option);
-                });
-                
-                subposeSelect.disabled = false;
+                try {
+                    const response = await fetch(`/api/options?pose=${encodeURIComponent(pose)}&variant=${encodeURIComponent(variant)}`);
+                    const data = await response.json();
+                    populateSelect(subposeSelect, data.subposes, 'Alle');
+                    subposeSelect.disabled = false;
+                } catch (err) {
+                    console.error(err);
+                }
+            }
+            applyFilters(1);
+        });
+
+        searchInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                applyFilters(1);
             }
         });
 
-        async function applyFilters() {
-            const pose = poseSelect.value || null;
-            const variant = variantSelect.value || null;
-            const subpose = subposeSelect.value || null;
-            const search = searchInput.value.trim();
-
+        async function applyFilters(page = 1) {
+            showLoading(true);
+            clearError();
             try {
-                let url = '/api/filter';
                 const params = new URLSearchParams();
-                if (pose) params.append('pose', pose);
-                if (variant) params.append('variant', variant);
-                if (subpose) params.append('subpose', subpose);
-                
-                if (params.toString()) {
-                    url += '?' + params.toString();
-                }
+                if (poseSelect.value) params.append('pose', poseSelect.value);
+                if (variantSelect.value) params.append('variant', variantSelect.value);
+                if (subposeSelect.value) params.append('subpose', subposeSelect.value);
+                if (searchInput.value.trim()) params.append('search', searchInput.value.trim());
+                params.append('page', page);
+                params.append('limit', pageSize);
 
-                const response = await fetch(url);
+                const response = await fetch(`/api/filter?${params.toString()}`);
                 const data = await response.json();
-                
-                filteredPoses = data.poses;
-                
-                // Apply search filter
-                if (search) {
-                    filteredPoses = filteredPoses.filter(p => 
-                        p.id.toString().includes(search)
-                    );
-                }
-
-                renderGallery();
-                document.getElementById('loading').style.display = 'none';
-            } catch (error) {
-                showError('Error applying filters: ' + error.message);
-                document.getElementById('loading').style.display = 'none';
+                currentPage = data.page;
+                totalPages = data.total_pages || 0;
+                currentResults = data.poses || [];
+                renderResults();
+            } catch (err) {
+                showError('Filter konnten nicht angewendet werden.');
+            } finally {
+                showLoading(false);
             }
         }
 
-        function renderGallery() {
-            const gallery = document.getElementById('gallery');
-            const empty = document.getElementById('empty');
-            const count = document.getElementById('pose-count');
-
-            if (filteredPoses.length === 0) {
+        function renderResults() {
+            if (!currentResults.length) {
                 gallery.innerHTML = '';
-                gallery.style.display = 'none';
                 empty.style.display = 'block';
-                count.textContent = '0';
+                poseCount.textContent = '0';
                 return;
             }
 
-            gallery.style.display = 'grid';
             empty.style.display = 'none';
-            count.textContent = filteredPoses.length;
+            poseCount.textContent = `${currentResults.length}`;
 
-            gallery.innerHTML = filteredPoses.map(pose => `
-                <div class="pose-card">
-                    <div class="pose-image">
-                        <img src="/thumbnails/${pose.id}" alt="Pose ${pose.id}" onerror="this.style.display='none'">
-                    </div>
-                    <div class="pose-info">
-                        <div class="pose-id">#${pose.id}</div>
-                        <div class="pose-meta">
-                            <span><strong>${pose.pose}</strong></span>
-                            <span>${pose.variant}</span>
-                            <span>${pose.subpose}</span>
+            gallery.innerHTML = currentResults.map(pose => {
+                const attributes = Array.isArray(pose.attributes) ? pose.attributes : [];
+                const attributeTags = attributes.map(attr => `<span class="attribute">${attr}</span>`).join('');
+                return `
+                    <article class="card">
+                        <img src="${pose.image_url}" alt="Pose ${pose.id}" onerror="this.src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAQAAADK4KPXAAAAF0lEQVR42u3BAQ0AAADCoPdPbQ43oAAAAAAAAAAA4G3rBAABvG6NSAAAAAElFTkSuQmCC'">
+                        <div class="card-body">
+                            <div class="card-title">
+                                <h2>#${pose.id}</h2>
+                                <span class="tag">${pose.variant || '—'}</span>
+                            </div>
+                            <div class="meta">
+                                <span><strong>Pose:</strong> ${pose.pose}</span>
+                                <span><strong>Subpose:</strong> ${pose.subpose}</span>
+                                <span><strong>Quelle:</strong> ${pose.source_file || 'unbekannt'}</span>
+                            </div>
+                            ${attributeTags ? `<div class="attributes">${attributeTags}</div>` : ''}
+                            <div class="actions">
+                                <button class="btn-copy" type="button" onclick="copyId(${pose.id}, this)">ID kopieren</button>
+                            </div>
                         </div>
-                        <div class="pose-actions">
-                            <button class="btn-copy" onclick="copyToClipboard(${pose.id}, this)">Copy ID</button>
-                        </div>
-                    </div>
-                </div>
-            `).join('');
+                    </article>
+                `;
+            }).join('');
         }
 
-        function copyToClipboard(id, button) {
-            navigator.clipboard.writeText(id.toString()).then(() => {
+        function copyId(id, button) {
+            navigator.clipboard.writeText(String(id)).then(() => {
                 button.classList.add('copied');
-                button.textContent = '✓ Copied!';
+                button.textContent = 'Kopiert';
                 setTimeout(() => {
                     button.classList.remove('copied');
-                    button.textContent = 'Copy ID';
-                }, 2000);
+                    button.textContent = 'ID kopieren';
+                }, 1400);
             });
         }
 
@@ -532,19 +384,23 @@
             subposeSelect.value = '';
             subposeSelect.disabled = true;
             searchInput.value = '';
-            applyFilters();
+            applyFilters(1);
+        }
+
+        function showLoading(active) {
+            loading.style.display = active ? 'block' : 'none';
         }
 
         function showError(message) {
             const container = document.getElementById('error-container');
             container.innerHTML = `<div class="error">${message}</div>`;
-            setTimeout(() => {
-                container.innerHTML = '';
-            }, 5000);
         }
 
-        // Load on startup
-        loadAllPoses();
+        function clearError() {
+            document.getElementById('error-container').innerHTML = '';
+        }
+
+        loadFilterOptions().then(() => applyFilters(1));
     </script>
 </body>
 </html>

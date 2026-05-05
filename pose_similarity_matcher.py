@@ -10,13 +10,38 @@ from pathlib import Path
 
 try:
     import folder_paths
-    REFERENCE_DIR = Path(folder_paths.get_input_directory()) / "openpose"
-    print("[PoseMatcher] Using ComfyUI input directory")
-except ImportError:
-    # Standalone fallback
-    REFERENCE_DIR = Path(os.path.dirname(__file__)) / ".." / ".." / "input" / "openpose"
-    REFERENCE_DIR = REFERENCE_DIR.resolve()
-    print("[PoseMatcher] Using fallback path:", REFERENCE_DIR)
+    models_dir = None
+    for attr_name in ["get_models_dir", "get_models_directory", "get_models_path", "get_model_dir"]:
+        if hasattr(folder_paths, attr_name):
+            try:
+                candidate = Path(getattr(folder_paths, attr_name)())
+                if candidate.exists():
+                    models_dir = candidate
+                    break
+            except Exception:
+                continue
+
+    if models_dir is None and hasattr(folder_paths, "get_input_directory"):
+        try:
+            input_dir = Path(folder_paths.get_input_directory())
+            candidate = input_dir.parent / "models"
+            if candidate.exists():
+                models_dir = candidate
+            else:
+                candidate = (input_dir / ".." / "models").resolve()
+                if candidate.exists():
+                    models_dir = candidate
+        except Exception:
+            pass
+
+    if models_dir is None:
+        raise AttributeError("could not resolve ComfyUI models directory from folder_paths")
+
+    REFERENCE_DIR = models_dir / "openpose"
+    print("[PoseMatcher] Using ComfyUI models/openpose directory")
+except Exception as exc:
+    REFERENCE_DIR = Path("")
+    print("[PoseMatcher] ERROR: folder_paths module unavailable or models path not resolvable:", exc)
 
 print(f"[PoseMatcher] Using path: {REFERENCE_DIR}")
 # --------------------------------------------------

@@ -13,6 +13,9 @@
 *.workspace
 codex_context.txt
 
+# Generated thumbnails
+web/pose_thumbnails/
+
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
 

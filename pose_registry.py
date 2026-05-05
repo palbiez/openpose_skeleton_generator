@@ -1,13 +1,15 @@
 """
 Pose Registry: Central database for all poses with unique IDs.
-Loads all poses from reference directory and provides search API.
+Loads all poses from PNG-based database and provides search API.
 """
 
+import importlib
 import json
-import numpy as np
 import os
+import subprocess
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple
+from PIL import Image
 
 
 class PoseRegistry:
@@ -33,48 +35,358 @@ class PoseRegistry:
         self._load_poses()
         self._build_index()
     
-    def _load_poses(self):
-        """Load all poses from reference directory."""
-        # Try to get ComfyUI input directory
+    def _get_openpose_dir(self) -> Path:
+        """Get OpenPose directory from ComfyUI models folder."""
+        env_path = os.getenv("OPENPOSE_MODELS_PATH")
+        if env_path:
+            candidate = Path(env_path)
+            if candidate.exists():
+                return candidate
+            print(f"[PoseRegistry] WARNING: OPENPOSE_MODELS_PATH is set but does not exist: {candidate}")
+
         try:
-            import folder_paths
-            ref_dir = Path(folder_paths.get_input_directory()) / "openpose"
-        except (ImportError, AttributeError):
-            # Fallback path
-            ref_dir = Path(os.path.dirname(__file__)) / ".." / ".." / "input" / "openpose"
-            ref_dir = ref_dir.resolve()
-        
-        print(f"[PoseRegistry] Loading from: {ref_dir}")
-        
-        if not ref_dir.exists():
-            print(f"[PoseRegistry] WARNING: Directory does not exist: {ref_dir}")
-            return
-        
-        pose_id = 1
-        for json_file in sorted(ref_dir.glob("*.json")):
+            folder_paths = importlib.import_module("folder_paths")
+        except (ImportError, ModuleNotFoundError) as exc:
+            print(f"[PoseRegistry] ERROR: folder_paths module unavailable: {exc}")
+            return Path("")
+
+        models_dir = None
+        for attr_name in ["get_models_dir", "get_models_directory", "get_models_path", "get_model_dir"]:
+            if hasattr(folder_paths, attr_name):
+                try:
+                    candidate = Path(getattr(folder_paths, attr_name)())
+                    if candidate.exists():
+                        models_dir = candidate
+                        break
+                except Exception:
+                    continue
+
+        if models_dir is None and hasattr(folder_paths, "get_input_directory"):
             try:
-                with open(json_file, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                
-                for item in data:
-                    pose_data = {
-                        "id": pose_id,
-                        "pose": item.get("pose", "unknown"),
-                        "variant": item.get("variant", "base"),
-                        "subpose": item.get("subpose", "default"),
-                        "attributes": item.get("attributes", []),
-                        "keypoints": item.get("keypoints", []),
-                        "source_file": json_file.name,
-                    }
-                    
-                    self.poses.append(pose_data)
-                    self.poses_by_id[pose_id] = pose_data
-                    pose_id += 1
-            
-            except Exception as e:
-                print(f"[PoseRegistry] Error loading {json_file}: {e}")
-        
+                input_dir = Path(folder_paths.get_input_directory())
+                candidate = input_dir.parent / "models"
+                if candidate.exists():
+                    models_dir = candidate
+                else:
+                    # Allow fallback to the parent of the ComfyUI user directory
+                    candidate = input_dir / ".." / "models"
+                    candidate = candidate.resolve()
+                    if candidate.exists():
+                        models_dir = candidate
+            except Exception:
+                pass
+
+        if models_dir is None:
+            print("[PoseRegistry] ERROR: could not resolve ComfyUI models directory from folder_paths")
+            return Path("")
+
+        openpose_dir = models_dir / "openpose"
+        if openpose_dir.exists():
+            return openpose_dir
+
+        print(f"[PoseRegistry] WARNING: expected openpose directory not found: {openpose_dir}")
+        return Path("")
+
+    @staticmethod
+    def _normalize_token(value: str) -> str:
+        return str(value).strip().lower().replace(" ", "_").replace("-", "_")
+
+    def _derive_pose_metadata(self, png_path: Path, openpose_dir: Path):
+        relative = png_path.relative_to(openpose_dir)
+        parts = [self._normalize_token(p) for p in relative.with_suffix("").parts if p]
+
+        pose = "unknown"
+        gender = "unknown"
+        variant = "base"
+        subpose = "default"
+
+        if len(parts) >= 4:
+            pose, gender, variant, subpose = parts[:4]
+        elif len(parts) == 3:
+            pose, variant, subpose = parts
+            gender = "unknown"
+        elif len(parts) == 2:
+            pose, variant = parts
+            subpose = "default"
+            gender = "unknown"
+        elif parts:
+            filename = parts[-1]
+            tokens = filename.split("_")
+            if len(tokens) >= 3:
+                pose, variant, subpose = tokens[:3]
+            elif len(tokens) == 2:
+                pose, variant = tokens
+                subpose = "default"
+            else:
+                pose = tokens[0]
+
+        return pose, gender, variant, subpose
+
+    @staticmethod
+    def _choose_best_preview(images):
+        priority = [
+            "_canny.png",
+            "_line_art.png",
+            "_openposefull.png",
+            "_openpose.png",
+            "_bone_structure_full.png",
+            "_bone_structure.png",
+        ]
+        lower_names = {image.name.lower(): image for image in images}
+        for suffix in priority:
+            for name, image in lower_names.items():
+                if suffix in name:
+                    return image
+        return images[0] if images else None
+
+    def _find_associated_images(self, png_path: Path):
+        parent = png_path.parent
+        siblings = [p for p in parent.glob("*.png") if p.is_file()]
+        display = None
+        bone_structure = None
+        bone_structure_full = None
+
+        # Prefer exact file if it already matches display candidates.
+        candidate = self._choose_best_preview(siblings + [png_path])
+        if candidate is not None:
+            display = candidate
+
+        for candidate in siblings:
+            name = candidate.name.lower()
+            if "_bone_structure_full" in name and bone_structure_full is None:
+                bone_structure_full = candidate
+            elif "_bone_structure.png" in name and bone_structure is None:
+                bone_structure = candidate
+
+        if bone_structure is None and bone_structure_full is not None:
+            bone_structure = bone_structure_full
+
+        if display is None:
+            display = png_path
+
+        return display, bone_structure, bone_structure_full
+
+    def _scan_openpose_folder(self, openpose_dir: Path, pose_attributes):
+        grouped = {}
+
+        for png_path in openpose_dir.rglob("*.png"):
+            name = png_path.name.lower()
+            if name.startswith("cover") or name.startswith("example") or name.startswith("thumb"):
+                continue
+            if "pose_thumbnails" in str(png_path.parts).lower():
+                continue
+
+            pose, gender, variant, subpose = self._derive_pose_metadata(png_path, openpose_dir)
+            key = (pose, gender, variant, subpose)
+            grouped.setdefault(key, []).append(png_path)
+
+        pose_id = 1
+        for (pose, gender, variant, subpose), png_paths in sorted(grouped.items()):
+            representative = self._choose_best_preview(png_paths)
+            if representative is None:
+                continue
+
+            display_image, bone_structure, bone_structure_full = self._find_associated_images(representative)
+            keypoints = self._extract_keypoints_from_png(representative) or []
+            attributes = pose_attributes.get((pose, variant, subpose), [])
+            pose_data = {
+                "id": pose_id,
+                "pose": pose,
+                "gender": gender,
+                "variant": variant,
+                "subpose": subpose,
+                "attributes": attributes,
+                "keypoints": keypoints,
+                "png_path": str(representative),
+                "display_image": str(display_image) if display_image else str(representative),
+                "bone_structure_path": str(bone_structure) if bone_structure else "",
+                "bone_structure_full_path": str(bone_structure_full) if bone_structure_full else "",
+                "source_file": representative.name,
+            }
+
+            self.poses.append(pose_data)
+            self.poses_by_id[pose_id] = pose_data
+            pose_id += 1
+
         print(f"[PoseRegistry] Loaded {len(self.poses)} poses")
+
+    def _extract_keypoints_from_png(self, png_path: Path) -> Optional[List[float]]:
+        """Extract keypoints from PNG file EXIF or info."""
+        try:
+            # Try PIL first
+            with Image.open(png_path) as img:
+                for key, value in img.info.items():
+                    if isinstance(value, str):
+                        text = value.strip()
+                        if text.startswith("{") or text.startswith("["):
+                            try:
+                                data = json.loads(text)
+                                if isinstance(data, dict) and "keypoints" in data:
+                                    return data["keypoints"]
+                                elif isinstance(data, list):
+                                    return data
+                            except json.JSONDecodeError:
+                                continue
+
+            # Fallback: try exiftool if available
+            try:
+                exiftool_path = r"C:\EasyDiffusion\exiftool\exiftool.exe"
+                if os.path.exists(exiftool_path):
+                    result = subprocess.run(
+                        [exiftool_path, "-j", str(png_path)],
+                        capture_output=True,
+                        text=True,
+                        encoding="utf-8",
+                        errors="ignore"
+                    )
+
+                    if result.returncode == 0 and result.stdout:
+                        data = json.loads(result.stdout)[0]
+                        for key, value in data.items():
+                            if isinstance(value, str):
+                                text = value.strip()
+                                if text.startswith("{") or text.startswith("["):
+                                    try:
+                                        parsed = json.loads(text)
+                                        if isinstance(parsed, dict) and "keypoints" in parsed:
+                                            return parsed["keypoints"]
+                                        elif isinstance(parsed, list):
+                                            return parsed
+                                    except json.JSONDecodeError:
+                                        continue
+            except Exception:
+                pass
+
+        except Exception as e:
+            print(f"[PoseRegistry] Error extracting keypoints from {png_path}: {e}")
+
+        return None
+
+    def _find_alternate_png_path(self, png_path: Path) -> Optional[Path]:
+        """Find a best-fit PNG alternative when the exact file is missing."""
+        if png_path.exists():
+            return png_path
+
+        parent = png_path.parent
+        if not parent.exists():
+            return None
+
+        candidates = [
+            p for p in parent.glob("*.png")
+            if p.name.lower() not in {"cover.png", "example.png"}
+        ]
+        if not candidates:
+            return None
+
+        subpose_name = parent.name.lower()
+
+        def score(candidate: Path) -> int:
+            name = candidate.name.lower()
+            score = 0
+            if subpose_name and subpose_name in name:
+                score += 50
+            if "_bone_structure_full" in name:
+                score += 40
+            elif "_bone_structure.png" in name:
+                score += 30
+            elif "_openposehand" in name:
+                score += 25
+            elif "_canny" in name:
+                score += 20
+            elif "_depth" in name:
+                score += 15
+            elif "_normalhand" in name:
+                score += 10
+            elif "openposefull" in name:
+                score += 5
+            if name == png_path.name.lower():
+                score += 100
+            return score
+
+        candidates.sort(key=score, reverse=True)
+        best = candidates[0]
+        if score(best) > 0:
+            return best
+        return None
+
+    def _load_poses(self):
+        """Load all poses from PNG database."""
+        openpose_dir = self._get_openpose_dir()
+        print(f"[PoseRegistry] Loading from: {openpose_dir}")
+
+        if not openpose_dir.exists():
+            print(f"[PoseRegistry] WARNING: Directory does not exist: {openpose_dir}")
+            return
+
+        # Load pose mapping for attributes
+        pose_mapping_path = openpose_dir / "pose_mapping.json"
+        pose_attributes = {}
+        if pose_mapping_path.exists():
+            try:
+                with open(pose_mapping_path, "r", encoding="utf-8-sig") as f:
+                    pose_mapping = json.load(f)
+                    for pose_name, variants in pose_mapping.items():
+                        for variant_name, subposes in variants.items():
+                            for subpose_name, data in subposes.items():
+                                key = (pose_name, variant_name, subpose_name)
+                                pose_attributes[key] = data.get("attributes", [])
+            except Exception as e:
+                print(f"[PoseRegistry] Error loading pose_mapping.json: {e}")
+
+        pose_index_path = openpose_dir / "pose_index.json"
+        if pose_index_path.exists():
+            try:
+                with open(pose_index_path, "r", encoding="utf-8-sig") as f:
+                    pose_index = json.load(f)
+            except Exception as e:
+                print(f"[PoseRegistry] Error loading pose_index.json: {e}")
+                return
+
+            pose_id = 1
+            for pose_name, genders in pose_index.items():
+                for gender_name, variants in genders.items():
+                    for variant_name, subposes in variants.items():
+                        for subpose_name, png_files in subposes.items():
+                            for png_file in png_files:
+                                file_path = str(png_file).replace("\\", "/").replace("\r", "").replace("\n", "").strip()
+                                png_path = openpose_dir / Path(file_path)
+
+                                if not png_path.exists():
+                                    alternate_path = self._find_alternate_png_path(png_path)
+                                    if alternate_path is not None and alternate_path.exists():
+                                        print(f"[PoseRegistry] Resolved missing file {png_path.relative_to(openpose_dir)} -> {alternate_path.relative_to(openpose_dir)}")
+                                        png_path = alternate_path
+
+                                if png_path.exists():
+                                    keypoints = self._extract_keypoints_from_png(png_path) or []
+                                    display_image, bone_structure, bone_structure_full = self._find_associated_images(png_path)
+                                    attr_key = (pose_name, variant_name, subpose_name)
+                                    attributes = pose_attributes.get(attr_key, [])
+
+                                    pose_data = {
+                                        "id": pose_id,
+                                        "pose": pose_name,
+                                        "gender": gender_name,
+                                        "variant": variant_name,
+                                        "subpose": subpose_name,
+                                        "attributes": attributes,
+                                        "keypoints": keypoints,
+                                        "png_path": str(png_path),
+                                        "display_image": str(display_image) if display_image else str(png_path),
+                                        "bone_structure_path": str(bone_structure) if bone_structure else "",
+                                        "bone_structure_full_path": str(bone_structure_full) if bone_structure_full else "",
+                                        "source_file": png_path.name,
+                                    }
+
+                                    self.poses.append(pose_data)
+                                    self.poses_by_id[pose_id] = pose_data
+                                    pose_id += 1
+                                else:
+                                    print(f"[PoseRegistry] PNG file not found: {png_path}")
+            print(f"[PoseRegistry] Loaded {len(self.poses)} poses")
+            return
+
+        self._scan_openpose_folder(openpose_dir, pose_attributes)
     
     def _build_index(self):
         """Build index for faster searches."""
@@ -165,10 +477,11 @@ class PoseRegistry:
             {
                 "id": p["id"],
                 "pose": p["pose"],
+                "gender": p.get("gender"),
                 "variant": p["variant"],
                 "subpose": p["subpose"],
-                "attributes": p["attributes"],
-                "source_file": p["source_file"],
+                "attributes": p.get("attributes", []),
+                "source_file": p.get("source_file") or Path(p.get("png_path", "")).name,
             }
             for p in self.poses
         ]

@@ -1,204 +1,96 @@
-"""
-Pose Browser Node: Search and select poses by criteria.
-Provides outputs with Pose IDs and metadata.
-"""
-
 import json
+import subprocess
+import sys
+from pathlib import Path
 from .pose_registry import get_registry
 
 
-class PoseBrowserNode:
-    """Node to search and browse available poses with dropdown filters."""
-    
-    def __init__(self):
-        self.registry = get_registry()
-    
+class PoseStructureByIdNode:
+    """Resolve a pose ID into structure image paths and metadata."""
+
     @classmethod
     def INPUT_TYPES(cls):
-        registry = get_registry()
-        all_poses = registry.get_all_poses()
-        
-        # Collect all unique variants and subposes
-        all_variants = set()
-        all_subposes = set()
-        
-        for pose in all_poses:
-            variants = registry.get_available_variants(pose)
-            all_variants.update(variants)
-            
-            for variant in variants:
-                subposes = registry.get_available_subposes(pose, variant)
-                all_subposes.update(subposes)
-        
-        all_variants = sorted(list(all_variants))
-        all_subposes = sorted(list(all_subposes))
-        
         return {
             "required": {
-                "pose": (all_poses, {"default": all_poses[0] if all_poses else "standing"}),
-                "variant": (all_variants, {"default": all_variants[0] if all_variants else "base"}),
-                "subpose": (all_subposes, {"default": all_subposes[0] if all_subposes else "neutral"}),
-                "output_format": (["id_only", "id_with_info", "full_json"], {"default": "id_only"}),
-            },
-            "optional": {}
-        }
-    
-    RETURN_TYPES = ("INT", "STRING", "STRING")
-    RETURN_NAMES = ("pose_id", "info", "full_data")
-    FUNCTION = "search"
-    CATEGORY = "pose"
-    
-    def search(self, pose, variant, subpose, output_format):
-        """Search for a pose matching the criteria."""
-        
-        # Find exact match
-        matching_ids = self.registry.search(pose=pose, variant=variant, subpose=subpose)
-        
-        if not matching_ids:
-            print(f"[PoseBrowser] No match for {pose}/{variant}/{subpose}")
-            return (
-                -1,
-                f"Not found: {pose}/{variant}/{subpose}",
-                "{}"
-            )
-        
-        pose_id = matching_ids[0]  # Return first match
-        pose_data = self.registry.get_pose_by_id(pose_id)
-        
-        if output_format == "id_only":
-            info = str(pose_id)
-        elif output_format == "id_with_info":
-            info = self.registry.get_info_by_id(pose_id)
-        else:  # full_json
-            info = json.dumps(pose_data, default=str, indent=2)
-        
-        full_data = json.dumps(pose_data, default=str)
-        
-        print(f"[PoseBrowser] Selected {info}")
-        return (pose_id, info, full_data)
-
-
-class PoseBrowserAdvancedNode:
-    """Advanced pose browser with dropdown filters for Pose, Variant, and Subpose."""
-    
-    def __init__(self):
-        self.registry = get_registry()
-    
-    @classmethod
-    def INPUT_TYPES(cls):
-        registry = get_registry()
-        all_poses = registry.get_all_poses()
-        
-        # Collect all unique variants and subposes
-        all_variants = set()
-        all_subposes = set()
-        
-        for pose in all_poses:
-            variants = registry.get_available_variants(pose)
-            all_variants.update(variants)
-            
-            for variant in variants:
-                subposes = registry.get_available_subposes(pose, variant)
-                all_subposes.update(subposes)
-        
-        all_variants = sorted(list(all_variants))
-        all_subposes = sorted(list(all_subposes))
-        
-        return {
-            "required": {
-                "pose": (all_poses, {"default": all_poses[0] if all_poses else "standing"}),
-            },
-            "optional": {
-                "variant": (all_variants, {"default": "base"}) if all_variants else ("STRING", {"default": ""}),
-                "subpose": (all_subposes, {"default": "neutral"}) if all_subposes else ("STRING", {"default": ""}),
+                "pose_id": ("INT", {"default": 1, "min": 1}),
+                "preferred_image": (["auto", "bone_structure", "bone_structure_full"], {"default": "auto"}),
             }
         }
-    
-    RETURN_TYPES = ("STRING", "STRING", "STRING", "INT")
-    RETURN_NAMES = ("available_variants", "available_subposes", "matching_ids", "count")
-    FUNCTION = "filter_poses"
+
+    RETURN_TYPES = ("STRING", "STRING", "STRING")
+    RETURN_NAMES = ("selected_path", "full_path", "pose_info")
+    FUNCTION = "resolve"
     CATEGORY = "pose"
-    
-    def filter_poses(self, pose, variant=None, subpose=None):
-        """Filter poses and return available options."""
-        
-        # Get available variants for this pose
-        variants = self.registry.get_available_variants(pose)
-        
-        # If variant is specified, use it; otherwise get all
-        if variant and variant in variants:
-            selected_variant = variant
-        elif variants:
-            selected_variant = variants[0]
-        else:
-            selected_variant = None
-        
-        # Get available subposes
-        if selected_variant:
-            subposes = self.registry.get_available_subposes(pose, selected_variant)
-        else:
-            subposes = []
-        
-        # If subpose is specified, use it; otherwise get all
-        if subpose and subpose in subposes:
-            selected_subpose = subpose
-        elif subposes:
-            selected_subpose = subposes[0]
-        else:
-            selected_subpose = None
-        
-        # Get matching IDs based on all filters
-        if selected_variant and selected_subpose:
-            matching_ids = self.registry.search(
-                pose=pose, 
-                variant=selected_variant, 
-                subpose=selected_subpose
-            )
-        elif selected_variant:
-            matching_ids = self.registry.search(
-                pose=pose, 
-                variant=selected_variant
-            )
-        else:
-            matching_ids = self.registry.search(pose=pose)
-        
-        variants_json = json.dumps(variants)
-        subposes_json = json.dumps(subposes)
-        ids_json = json.dumps(matching_ids)
-        count = len(matching_ids)
-        
-        print(f"[PoseBrowserAdvanced] Pose: {pose}")
-        if variant:
-            print(f"[PoseBrowserAdvanced] Variant: {variant}")
-        if subpose:
-            print(f"[PoseBrowserAdvanced] Subpose: {subpose}")
-        print(f"[PoseBrowserAdvanced] Available variants: {variants}")
-        print(f"[PoseBrowserAdvanced] Available subposes: {subposes}")
-        print(f"[PoseBrowserAdvanced] Matching IDs: {count} results")
-        
-        return (variants_json, subposes_json, ids_json, count)
 
-
-class PoseListerNode:
-    """List all available poses."""
-    
     def __init__(self):
         self.registry = get_registry()
-    
+
+    def resolve(self, pose_id, preferred_image):
+        pose_data = self.registry.get_pose_by_id(pose_id)
+        if not pose_data:
+            info = json.dumps({"error": f"Pose ID {pose_id} not found"}, indent=2)
+            return ("", "", info)
+
+        bone_structure = pose_data.get("bone_structure_path") or ""
+        bone_structure_full = pose_data.get("bone_structure_full_path") or ""
+        display_image = pose_data.get("display_image") or pose_data.get("png_path") or ""
+
+        if preferred_image == "bone_structure_full" and bone_structure_full:
+            selected = bone_structure_full
+        elif preferred_image == "bone_structure" and bone_structure:
+            selected = bone_structure
+        else:
+            selected = bone_structure or bone_structure_full or display_image
+
+        info_payload = {
+            "id": pose_data.get("id"),
+            "pose": pose_data.get("pose"),
+            "variant": pose_data.get("variant"),
+            "subpose": pose_data.get("subpose"),
+            "attributes": pose_data.get("attributes", []),
+            "source_file": pose_data.get("source_file"),
+            "display_image": pose_data.get("display_image"),
+            "bone_structure": bone_structure,
+            "bone_structure_full": bone_structure_full,
+        }
+
+        return (str(selected), str(bone_structure_full), json.dumps(info_payload, indent=2, default=str))
+
+
+class PoseBrowserLauncherNode:
+    """Launch the OpenPose browser from inside ComfyUI."""
+
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {}
         }
-    
+
     RETURN_TYPES = ("STRING",)
-    RETURN_NAMES = ("all_poses",)
-    FUNCTION = "list_poses"
+    RETURN_NAMES = ("status",)
+    FUNCTION = "start_server"
     CATEGORY = "pose"
-    
-    def list_poses(self):
-        """Return all available poses as JSON."""
-        poses = self.registry.list_all()
-        result = json.dumps(poses, indent=2, default=str)
-        print(f"[PoseLister] Listed {len(poses)} poses")
-        return (result,)
+
+    def start_server(self):
+        server_script = Path(__file__).parent / "pose_browser_server.py"
+        if not server_script.exists():
+            message = "Pose browser server script not found."
+            print(f"[PoseBrowserLauncher] {message}")
+            return (message,)
+
+        cmd = [sys.executable, str(server_script)]
+        try:
+            subprocess.Popen(
+                cmd,
+                cwd=str(server_script.parent),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                stdin=subprocess.DEVNULL,
+            )
+            message = "OpenPose Browser launched on http://127.0.0.1:8189"
+            print(f"[PoseBrowserLauncher] {message}")
+            return (message,)
+        except Exception as e:
+            message = f"Failed to launch OpenPose Browser: {e}"
+            print(f"[PoseBrowserLauncher] {message}")
+            return (message,)
