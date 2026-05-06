@@ -1,0 +1,186 @@
+[2026-05-06 06:30:32] === DEBUG LOG STARTED ===
+[2026-05-06 06:30:32] [DEBUG] pose_browser_server: Starting server initialization
+[2026-05-06 06:30:32] [DEBUG] get_registry: Called, current registry is None
+[2026-05-06 06:30:32] [DEBUG] get_registry: Creating new PoseRegistry instance
+[2026-05-06 06:30:32] [DEBUG] PoseRegistry.__init__: Starting initialization
+[2026-05-06 06:30:32] [DEBUG] PoseRegistry.__init__: Attempting to load from cache
+[2026-05-06 06:30:32] [DEBUG] _load_from_cache: Checking cache file: C:\Users\firew\Documents\ComfyUI\custom_nodes\PAL_open_skeleton_generator\pose_registry_cache.json
+[2026-05-06 06:30:32] [DEBUG] _load_from_cache: Cache file exists, size: 3585784 bytes
+[2026-05-06 06:30:32] [DEBUG] _load_from_cache: Reading cache file
+[2026-05-06 06:30:32] [DEBUG] _load_from_cache: Cache data loaded, keys: ['poses', 'poses_by_id', 'index_by_filter', 'total_poses']
+[2026-05-06 06:30:32] [DEBUG] _load_from_cache: OpenPose directory: C:\Users\firew\Documents\ComfyUI\models\openpose
+[2026-05-06 06:30:33] [DEBUG] _load_from_cache: Found 2243 PNG files, newest mtime: 1777446650.672883, cache mtime: 1778005583.2376544
+[2026-05-06 06:30:33] [DEBUG] _load_from_cache: Loading poses from cache data
+[2026-05-06 06:30:33] [DEBUG] _load_from_cache: Cache load successful
+[2026-05-06 06:30:33] [DEBUG] PoseRegistry.__init__: Successfully loaded 2183 poses from cache
+[2026-05-06 06:30:33] [DEBUG] PoseRegistry.__init__: Building index for 2183 poses
+[2026-05-06 06:30:33] [DEBUG] PoseRegistry.__init__: Initialization complete. Total poses: 2183
+[2026-05-06 06:30:33] [DEBUG] get_registry: Registry created with 2183 poses
+[2026-05-06 06:30:33] [DEBUG] pose_browser_server: Registry loaded with 2183 poses
+[2026-05-06 06:30:33] [DEBUG] pose_browser_server: First pose sample: {'id': 1, 'pose': 'kneeling', 'gender': 'f', 'variant': 'nsfw', 'subpose': 'all_fours', 'attributes': [], 'keypoints': [], 'png_path': 'C:\\Users\\firew\\Documents\\ComfyUI\\models\\openpose\\kneeling\\F\\nsfw\\all_fours\\all_fours_001\\all_fours003_bone_structure.png', 'display_image': 'C:\\Users\\firew\\Documents\\ComfyUI\\models\\openpose\\kneeling\\F\\nsfw\\all_fours\\all_fours_001\\all_fours003_bone_structure.png', 'bone_structure_path': 'C:\\Users\\firew\\Documents\\ComfyUI\\models\\openpose\\kneeling\\F\\nsfw\\all_fours\\all_fours_001\\all_fours003_bone_structure.png', 'bone_structure_full_path': '', 'source_file': 'all_fours003_bone_structure.png'}
+[2026-05-06 06:30:33] [DEBUG] __main__: Starting PAL OpenPose Browser on http://0.0.0.0:8189
+[2026-05-06 06:30:33] [DEBUG] list_all: Called, registry has 2183 poses
+[2026-05-06 06:30:33] [DEBUG] list_all: Returning 2183 pose summaries
+[2026-05-06 06:30:33] [DEBUG] __main__: Registry has 2183 poses from list_all()
+[2026-05-06 06:30:33] [DEBUG] __main__: Registry has 2183 poses from direct access
+[2026-05-06 06:52:33] [DEBUG] /api/filter: Called with pose=None, variant=None, subpose=None, search=None, page=1, limit=60
+[2026-05-06 06:52:33] [DEBUG] /api/filter: Registry has 2183 poses
+[2026-05-06 06:52:33] [DEBUG] /api/filter: No filters specified, using all poses
+[2026-05-06 06:52:33] [DEBUG] /api/filter: Found 2183 matching IDs
+[2026-05-06 06:52:33] [DEBUG] /api/filter: Returning result with count=2183, poses_in_page=60
+[2026-05-06 06:53:39] [DEBUG] /api/filter: Called with pose=None, variant=None, subpose=None, search=None, page=1, limit=60
+[2026-05-06 06:53:39] [DEBUG] /api/filter: Registry has 2183 poses
+[2026-05-06 06:53:39] [DEBUG] /api/filter: No filters specified, using all poses
+[2026-05-06 06:53:39] [DEBUG] /api/filter: Found 2183 matching IDs
+[2026-05-06 06:53:39] [DEBUG] /api/filter: Returning result with count=2183, poses_in_page=60
+[2026-05-06 06:53:42] [DEBUG] /api/filter: Called with pose=lying, variant=None, subpose=None, search=None, page=1, limit=60
+[2026-05-06 06:53:42] [DEBUG] /api/filter: Registry has 2183 poses
+[2026-05-06 06:53:42] [DEBUG] /api/filter: Using registry.search with pose=lying, variant=None, subpose=None
+[2026-05-06 06:53:42] [DEBUG] search: Called with pose=lying, variant=None, subpose=None
+[2026-05-06 06:53:42] [DEBUG] search: Registry has 2183 total poses
+[2026-05-06 06:53:42] [DEBUG] search: Found 164 matching poses
+[2026-05-06 06:53:42] [DEBUG] /api/filter: Found 164 matching IDs
+[2026-05-06 06:53:42] [DEBUG] /api/filter: Returning result with count=164, poses_in_page=60
+[2026-05-06 06:53:43] [DEBUG] /api/filter: Called with pose=kneeling, variant=None, subpose=None, search=None, page=1, limit=60
+[2026-05-06 06:53:43] [DEBUG] /api/filter: Registry has 2183 poses
+[2026-05-06 06:53:43] [DEBUG] /api/filter: Using registry.search with pose=kneeling, variant=None, subpose=None
+[2026-05-06 06:53:43] [DEBUG] search: Called with pose=kneeling, variant=None, subpose=None
+[2026-05-06 06:53:43] [DEBUG] search: Registry has 2183 total poses
+[2026-05-06 06:53:43] [DEBUG] search: Found 247 matching poses
+[2026-05-06 06:53:43] [DEBUG] /api/filter: Found 247 matching IDs
+[2026-05-06 06:53:43] [DEBUG] /api/filter: Returning result with count=247, poses_in_page=60
+[2026-05-06 06:53:44] [DEBUG] /api/filter: Called with pose=None, variant=None, subpose=None, search=None, page=1, limit=60
+[2026-05-06 06:53:44] [DEBUG] /api/filter: Registry has 2183 poses
+[2026-05-06 06:53:44] [DEBUG] /api/filter: No filters specified, using all poses
+[2026-05-06 06:53:44] [DEBUG] /api/filter: Found 2183 matching IDs
+[2026-05-06 06:53:44] [DEBUG] /api/filter: Returning result with count=2183, poses_in_page=60
+[2026-05-06 06:53:47] [DEBUG] /api/filter: Called with pose=kneeling, variant=None, subpose=None, search=None, page=1, limit=60
+[2026-05-06 06:53:47] [DEBUG] /api/filter: Registry has 2183 poses
+[2026-05-06 06:53:47] [DEBUG] /api/filter: Using registry.search with pose=kneeling, variant=None, subpose=None
+[2026-05-06 06:53:47] [DEBUG] search: Called with pose=kneeling, variant=None, subpose=None
+[2026-05-06 06:53:47] [DEBUG] search: Registry has 2183 total poses
+[2026-05-06 06:53:47] [DEBUG] search: Found 247 matching poses
+[2026-05-06 06:53:47] [DEBUG] /api/filter: Found 247 matching IDs
+[2026-05-06 06:53:47] [DEBUG] /api/filter: Returning result with count=247, poses_in_page=60
+[2026-05-06 06:53:48] [DEBUG] /api/filter: Called with pose=kneeling, variant=None, subpose=None, search=None, page=1, limit=60
+[2026-05-06 06:53:48] [DEBUG] /api/filter: Registry has 2183 poses
+[2026-05-06 06:53:48] [DEBUG] /api/filter: Using registry.search with pose=kneeling, variant=None, subpose=None
+[2026-05-06 06:53:48] [DEBUG] search: Called with pose=kneeling, variant=None, subpose=None
+[2026-05-06 06:53:48] [DEBUG] search: Registry has 2183 total poses
+[2026-05-06 06:53:48] [DEBUG] search: Found 247 matching poses
+[2026-05-06 06:53:48] [DEBUG] /api/filter: Found 247 matching IDs
+[2026-05-06 06:53:48] [DEBUG] /api/filter: Returning result with count=247, poses_in_page=60
+[2026-05-06 06:53:52] [DEBUG] /api/filter: Called with pose=lying, variant=None, subpose=None, search=None, page=1, limit=60
+[2026-05-06 06:53:52] [DEBUG] /api/filter: Registry has 2183 poses
+[2026-05-06 06:53:52] [DEBUG] /api/filter: Using registry.search with pose=lying, variant=None, subpose=None
+[2026-05-06 06:53:52] [DEBUG] search: Called with pose=lying, variant=None, subpose=None
+[2026-05-06 06:53:52] [DEBUG] search: Registry has 2183 total poses
+[2026-05-06 06:53:52] [DEBUG] search: Found 164 matching poses
+[2026-05-06 06:53:52] [DEBUG] /api/filter: Found 164 matching IDs
+[2026-05-06 06:53:52] [DEBUG] /api/filter: Returning result with count=164, poses_in_page=60
+[2026-05-06 06:53:53] [DEBUG] /api/filter: Called with pose=lying, variant=None, subpose=None, search=None, page=1, limit=60
+[2026-05-06 06:53:53] [DEBUG] /api/filter: Registry has 2183 poses
+[2026-05-06 06:53:53] [DEBUG] /api/filter: Using registry.search with pose=lying, variant=None, subpose=None
+[2026-05-06 06:53:53] [DEBUG] search: Called with pose=lying, variant=None, subpose=None
+[2026-05-06 06:53:53] [DEBUG] search: Registry has 2183 total poses
+[2026-05-06 06:53:53] [DEBUG] search: Found 164 matching poses
+[2026-05-06 06:53:53] [DEBUG] /api/filter: Found 164 matching IDs
+[2026-05-06 06:53:53] [DEBUG] /api/filter: Returning result with count=164, poses_in_page=60
+[2026-05-06 06:53:55] [DEBUG] /api/filter: Called with pose=sitting, variant=None, subpose=None, search=None, page=1, limit=60
+[2026-05-06 06:53:55] [DEBUG] /api/filter: Registry has 2183 poses
+[2026-05-06 06:53:55] [DEBUG] /api/filter: Using registry.search with pose=sitting, variant=None, subpose=None
+[2026-05-06 06:53:55] [DEBUG] search: Called with pose=sitting, variant=None, subpose=None
+[2026-05-06 06:53:55] [DEBUG] search: Registry has 2183 total poses
+[2026-05-06 06:53:55] [DEBUG] search: Found 510 matching poses
+[2026-05-06 06:53:55] [DEBUG] /api/filter: Found 510 matching IDs
+[2026-05-06 06:53:55] [DEBUG] /api/filter: Returning result with count=510, poses_in_page=60
+[2026-05-06 06:53:57] [DEBUG] /api/filter: Called with pose=sitting, variant=None, subpose=None, search=None, page=1, limit=60
+[2026-05-06 06:53:57] [DEBUG] /api/filter: Registry has 2183 poses
+[2026-05-06 06:53:57] [DEBUG] /api/filter: Using registry.search with pose=sitting, variant=None, subpose=None
+[2026-05-06 06:53:57] [DEBUG] search: Called with pose=sitting, variant=None, subpose=None
+[2026-05-06 06:53:57] [DEBUG] search: Registry has 2183 total poses
+[2026-05-06 06:53:57] [DEBUG] search: Found 510 matching poses
+[2026-05-06 06:53:57] [DEBUG] /api/filter: Found 510 matching IDs
+[2026-05-06 06:53:57] [DEBUG] /api/filter: Returning result with count=510, poses_in_page=60
+[2026-05-06 06:54:02] [DEBUG] /api/filter: Called with pose=special, variant=None, subpose=None, search=None, page=1, limit=60
+[2026-05-06 06:54:02] [DEBUG] /api/filter: Registry has 2183 poses
+[2026-05-06 06:54:02] [DEBUG] /api/filter: Using registry.search with pose=special, variant=None, subpose=None
+[2026-05-06 06:54:02] [DEBUG] search: Called with pose=special, variant=None, subpose=None
+[2026-05-06 06:54:02] [DEBUG] search: Registry has 2183 total poses
+[2026-05-06 06:54:02] [DEBUG] search: Found 264 matching poses
+[2026-05-06 06:54:02] [DEBUG] /api/filter: Found 264 matching IDs
+[2026-05-06 06:54:02] [DEBUG] /api/filter: Returning result with count=264, poses_in_page=60
+[2026-05-06 06:54:06] [DEBUG] /api/filter: Called with pose=standing, variant=None, subpose=None, search=None, page=1, limit=60
+[2026-05-06 06:54:06] [DEBUG] /api/filter: Registry has 2183 poses
+[2026-05-06 06:54:06] [DEBUG] /api/filter: Using registry.search with pose=standing, variant=None, subpose=None
+[2026-05-06 06:54:06] [DEBUG] search: Called with pose=standing, variant=None, subpose=None
+[2026-05-06 06:54:06] [DEBUG] search: Registry has 2183 total poses
+[2026-05-06 06:54:06] [DEBUG] search: Found 998 matching poses
+[2026-05-06 06:54:06] [DEBUG] /api/filter: Found 998 matching IDs
+[2026-05-06 06:54:06] [DEBUG] /api/filter: Returning result with count=998, poses_in_page=60
+[2026-05-06 06:54:15] [DEBUG] /api/filter: Called with pose=None, variant=None, subpose=None, search=None, page=1, limit=60
+[2026-05-06 06:54:15] [DEBUG] /api/filter: Registry has 2183 poses
+[2026-05-06 06:54:15] [DEBUG] /api/filter: No filters specified, using all poses
+[2026-05-06 06:54:15] [DEBUG] /api/filter: Found 2183 matching IDs
+[2026-05-06 06:54:15] [DEBUG] /api/filter: Returning result with count=2183, poses_in_page=60
+[2026-05-06 06:54:16] [DEBUG] /api/filter: Called with pose=None, variant=None, subpose=None, search=None, page=1, limit=60
+[2026-05-06 06:54:16] [DEBUG] /api/filter: Registry has 2183 poses
+[2026-05-06 06:54:16] [DEBUG] /api/filter: No filters specified, using all poses
+[2026-05-06 06:54:16] [DEBUG] /api/filter: Found 2183 matching IDs
+[2026-05-06 06:54:16] [DEBUG] /api/filter: Returning result with count=2183, poses_in_page=60
+[2026-05-06 06:54:29] [DEBUG] /api/filter: Called with pose=kneeling, variant=None, subpose=None, search=None, page=1, limit=60
+[2026-05-06 06:54:29] [DEBUG] /api/filter: Registry has 2183 poses
+[2026-05-06 06:54:29] [DEBUG] /api/filter: Using registry.search with pose=kneeling, variant=None, subpose=None
+[2026-05-06 06:54:29] [DEBUG] search: Called with pose=kneeling, variant=None, subpose=None
+[2026-05-06 06:54:29] [DEBUG] search: Registry has 2183 total poses
+[2026-05-06 06:54:29] [DEBUG] search: Found 247 matching poses
+[2026-05-06 06:54:29] [DEBUG] /api/filter: Found 247 matching IDs
+[2026-05-06 06:54:29] [DEBUG] /api/filter: Returning result with count=247, poses_in_page=60
+[2026-05-06 06:54:31] [DEBUG] /api/filter: Called with pose=kneeling, variant=nsfw, subpose=None, search=None, page=1, limit=60
+[2026-05-06 06:54:31] [DEBUG] /api/filter: Registry has 2183 poses
+[2026-05-06 06:54:31] [DEBUG] /api/filter: Using registry.search with pose=kneeling, variant=nsfw, subpose=None
+[2026-05-06 06:54:31] [DEBUG] search: Called with pose=kneeling, variant=nsfw, subpose=None
+[2026-05-06 06:54:31] [DEBUG] search: Registry has 2183 total poses
+[2026-05-06 06:54:31] [DEBUG] search: Found 247 matching poses
+[2026-05-06 06:54:31] [DEBUG] /api/filter: Found 247 matching IDs
+[2026-05-06 06:54:31] [DEBUG] /api/filter: Returning result with count=247, poses_in_page=60
+[2026-05-06 06:54:35] [DEBUG] /api/filter: Called with pose=kneeling, variant=nsfw, subpose=all_fours, search=None, page=1, limit=60
+[2026-05-06 06:54:35] [DEBUG] /api/filter: Registry has 2183 poses
+[2026-05-06 06:54:35] [DEBUG] /api/filter: Using registry.search with pose=kneeling, variant=nsfw, subpose=all_fours
+[2026-05-06 06:54:35] [DEBUG] search: Called with pose=kneeling, variant=nsfw, subpose=all_fours
+[2026-05-06 06:54:35] [DEBUG] search: Registry has 2183 total poses
+[2026-05-06 06:54:35] [DEBUG] search: Found 36 matching poses
+[2026-05-06 06:54:35] [DEBUG] /api/filter: Found 36 matching IDs
+[2026-05-06 06:54:35] [DEBUG] /api/filter: Returning result with count=36, poses_in_page=36
+[2026-05-06 06:54:42] [DEBUG] /api/filter: Called with pose=lying, variant=None, subpose=None, search=None, page=1, limit=60
+[2026-05-06 06:54:42] [DEBUG] /api/filter: Registry has 2183 poses
+[2026-05-06 06:54:42] [DEBUG] /api/filter: Using registry.search with pose=lying, variant=None, subpose=None
+[2026-05-06 06:54:42] [DEBUG] search: Called with pose=lying, variant=None, subpose=None
+[2026-05-06 06:54:42] [DEBUG] search: Registry has 2183 total poses
+[2026-05-06 06:54:42] [DEBUG] search: Found 164 matching poses
+[2026-05-06 06:54:42] [DEBUG] /api/filter: Found 164 matching IDs
+[2026-05-06 06:54:42] [DEBUG] /api/filter: Returning result with count=164, poses_in_page=60
+[2026-05-06 06:54:44] [DEBUG] /api/filter: Called with pose=lying, variant=nsfw, subpose=None, search=None, page=1, limit=60
+[2026-05-06 06:54:44] [DEBUG] /api/filter: Registry has 2183 poses
+[2026-05-06 06:54:44] [DEBUG] /api/filter: Using registry.search with pose=lying, variant=nsfw, subpose=None
+[2026-05-06 06:54:44] [DEBUG] search: Called with pose=lying, variant=nsfw, subpose=None
+[2026-05-06 06:54:44] [DEBUG] search: Registry has 2183 total poses
+[2026-05-06 06:54:44] [DEBUG] search: Found 164 matching poses
+[2026-05-06 06:54:44] [DEBUG] /api/filter: Found 164 matching IDs
+[2026-05-06 06:54:44] [DEBUG] /api/filter: Returning result with count=164, poses_in_page=60
+[2026-05-06 06:54:46] [DEBUG] /api/filter: Called with pose=lying, variant=nsfw, subpose=split_leg, search=None, page=1, limit=60
+[2026-05-06 06:54:46] [DEBUG] /api/filter: Registry has 2183 poses
+[2026-05-06 06:54:46] [DEBUG] /api/filter: Using registry.search with pose=lying, variant=nsfw, subpose=split_leg
+[2026-05-06 06:54:46] [DEBUG] search: Called with pose=lying, variant=nsfw, subpose=split_leg
+[2026-05-06 06:54:46] [DEBUG] search: Registry has 2183 total poses
+[2026-05-06 06:54:46] [DEBUG] search: Found 63 matching poses
+[2026-05-06 06:54:46] [DEBUG] /api/filter: Found 63 matching IDs
+[2026-05-06 06:54:46] [DEBUG] /api/filter: Returning result with count=63, poses_in_page=60
+[2026-05-06 07:03:36] [DEBUG] /api/filter: Called with pose=sitting, variant=None, subpose=None, search=None, page=1, limit=60
+[2026-05-06 07:03:36] [DEBUG] /api/filter: Registry has 2183 poses
+[2026-05-06 07:03:36] [DEBUG] /api/filter: Using registry.search with pose=sitting, variant=None, subpose=None
+[2026-05-06 07:03:36] [DEBUG] search: Called with pose=sitting, variant=None, subpose=None
+[2026-05-06 07:03:36] [DEBUG] search: Registry has 2183 total poses
+[2026-05-06 07:03:36] [DEBUG] search: Found 510 matching poses
+[2026-05-06 07:03:36] [DEBUG] /api/filter: Found 510 matching IDs
+[2026-05-06 07:03:36] [DEBUG] /api/filter: Returning result with count=510, poses_in_page=60

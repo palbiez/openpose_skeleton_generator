@@ -10,6 +10,13 @@ from .pose_selector_node import PoseSelectorNode
 from .pose_from_structure_node import PoseFromStructureNode
 from .pose_browser_node import PoseStructureByIdNode, PoseBrowserLauncherNode
 
+# Import debug_log from pose_registry
+try:
+    from .pose_registry import debug_log
+except ImportError:
+    def debug_log(message: str):
+        print(message)
+
 NODE_CLASS_MAPPINGS = {
     "SkeletonFromJSON": SkeletonFromJSON,
     "PoseMatcherNode": PoseMatcherNode,
@@ -31,26 +38,34 @@ def _is_port_open(host: str, port: int) -> bool:
 
 
 def _launch_browser_server() -> None:
+    debug_log("[DEBUG] _launch_browser_server: Called")
     host = os.getenv("OPENPOSE_BROWSER_HOST", "0.0.0.0")
     port = int(os.getenv("OPENPOSE_BROWSER_PORT", "8189"))
+    debug_log(f"[DEBUG] _launch_browser_server: Checking port {host}:{port}")
     if _is_port_open(host, port):
+        debug_log(f"[DEBUG] _launch_browser_server: Port {port} already open, skipping")
         return
 
     server_script = Path(__file__).parent / "pose_browser_server.py"
+    debug_log(f"[DEBUG] _launch_browser_server: Server script path: {server_script}")
     if not server_script.exists():
-        print("[PAL OpenPose Browser] auto-start skipped: server script not found")
+        debug_log("[DEBUG] _launch_browser_server: Server script not found, skipping")
         return
 
     # Set environment variable for the models path
     try:
+        debug_log("[DEBUG] _launch_browser_server: Trying to import folder_paths")
         import folder_paths
         models_dir = folder_paths.get_models_dir()
         env = os.environ.copy()
         env["OPENPOSE_MODELS_PATH"] = str(Path(models_dir) / "openpose")
-    except (ImportError, AttributeError):
+        debug_log(f"[DEBUG] _launch_browser_server: Set OPENPOSE_MODELS_PATH to {env['OPENPOSE_MODELS_PATH']}")
+    except (ImportError, AttributeError) as e:
+        debug_log(f"[DEBUG] _launch_browser_server: folder_paths import failed: {e}")
         env = os.environ.copy()
 
     cmd = [sys.executable, str(server_script)]
+    debug_log(f"[DEBUG] _launch_browser_server: Starting command: {cmd}")
     creationflags = subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
     try:
         subprocess.Popen(
@@ -62,15 +77,15 @@ def _launch_browser_server() -> None:
             env=env,
             creationflags=creationflags,
         )
-        print(f"[PAL OpenPose Browser] auto-starting server at http://{host}:{port}")
+        debug_log(f"[DEBUG] _launch_browser_server: Server process started at http://{host}:{port}")
     except Exception as exc:
-        print(f"[PAL OpenPose Browser] auto-start failed: {exc}")
+        debug_log(f"[DEBUG] _launch_browser_server: Server start failed: {exc}")
 
 
 try:
     _launch_browser_server()
 except Exception as exc:
-    print(f"[PAL OpenPose Browser] auto-start initialization failed: {exc}")
+    debug_log(f"[PAL OpenPose Browser] auto-start initialization failed: {exc}")
 
 WEB_DIRECTORY = "web"
 

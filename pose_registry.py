@@ -11,6 +11,27 @@ from pathlib import Path
 from typing import List, Dict, Optional, Tuple
 from PIL import Image
 
+# DEBUG logging setup
+DEBUG_LOG_FILE = Path(__file__).parent / "debug_log.txt"
+
+def debug_log(message: str):
+    """Write debug message to log file and console."""
+    timestamp = __import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    full_message = f"[{timestamp}] {message}"
+    print(full_message)
+    try:
+        with open(DEBUG_LOG_FILE, 'a', encoding='utf-8') as f:
+            f.write(full_message + '\n')
+    except Exception as e:
+        print(f"[DEBUG] Failed to write to log file: {e}")
+
+# Clear log file on import
+try:
+    DEBUG_LOG_FILE.unlink(missing_ok=True)
+    debug_log("=== DEBUG LOG STARTED ===")
+except:
+    pass
+
 
 class PoseRegistry:
     """Singleton registry for all available poses."""
@@ -25,59 +46,91 @@ class PoseRegistry:
     
     def __init__(self):
         if self._initialized:
+            debug_log("[DEBUG] PoseRegistry.__init__: Already initialized, skipping")
             return
         
+        debug_log("[DEBUG] PoseRegistry.__init__: Starting initialization")
         self._initialized = True
         self.poses: List[Dict] = []
         self.poses_by_id: Dict[int, Dict] = {}
         self.index_by_filter: Dict[Tuple, List[int]] = {}
         
         # Try to load from cache first
+        debug_log("[DEBUG] PoseRegistry.__init__: Attempting to load from cache")
         if self._load_from_cache():
-            print(f"[PoseRegistry] Loaded {len(self.poses)} poses from cache")
+            debug_log(f"[DEBUG] PoseRegistry.__init__: Successfully loaded {len(self.poses)} poses from cache")
         else:
+            debug_log("[DEBUG] PoseRegistry.__init__: Cache load failed, loading poses from disk")
             self._load_poses()
             self._save_to_cache()
         
+        debug_log(f"[DEBUG] PoseRegistry.__init__: Building index for {len(self.poses)} poses")
         self._build_index()
+        debug_log(f"[DEBUG] PoseRegistry.__init__: Initialization complete. Total poses: {len(self.poses)}")
     
     def _load_from_cache(self) -> bool:
         """Try to load poses from cache file. Returns True if successful."""
         cache_file = Path(__file__).parent / "pose_registry_cache.json"
+        debug_log(f"[DEBUG] _load_from_cache: Checking cache file: {cache_file}")
         if not cache_file.exists():
+            debug_log("[DEBUG] _load_from_cache: Cache file does not exist")
             return False
         
+        debug_log(f"[DEBUG] _load_from_cache: Cache file exists, size: {cache_file.stat().st_size} bytes")
+        
         try:
+            debug_log("[DEBUG] _load_from_cache: Reading cache file")
             with open(cache_file, 'r', encoding='utf-8') as f:
                 cache_data = json.load(f)
             
+            debug_log(f"[DEBUG] _load_from_cache: Cache data loaded, keys: {list(cache_data.keys())}")
+            
             # Check if cache is still valid by comparing file modification times
             openpose_dir = self._get_openpose_dir()
+            debug_log(f"[DEBUG] _load_from_cache: OpenPose directory: {openpose_dir}")
             if openpose_dir.exists():
                 cache_mtime = cache_file.stat().st_mtime
                 newest_png = 0
+                png_count = 0
                 for png_path in openpose_dir.rglob("*.png"):
                     png_mtime = png_path.stat().st_mtime
                     newest_png = max(newest_png, png_mtime)
+                    png_count += 1
+                
+                debug_log(f"[DEBUG] _load_from_cache: Found {png_count} PNG files, newest mtime: {newest_png}, cache mtime: {cache_mtime}")
                 
                 if newest_png > cache_mtime:
-                    print("[PoseRegistry] Cache is outdated, rescanning...")
+                    debug_log("[DEBUG] _load_from_cache: Cache is outdated, rescanning...")
                     return False
             
             # Load from cache
+            debug_log("[DEBUG] _load_from_cache: Loading poses from cache data")
             self.poses = cache_data["poses"]
-            self.poses_by_id = cache_data["poses_by_id"]
-            self.index_by_filter = cache_data.get("index_by_filter", {})
+            self.poses_by_id = {}
+            for key, value in cache_data.get("poses_by_id", {}).items():
+                try:
+                    key_int = int(key)
+                except Exception:
+                    key_int = key
+                self.poses_by_id[key_int] = value
             
             # Convert string keys back to tuples for index_by_filter
             if self.index_by_filter:
                 self.index_by_filter = {tuple(k) if isinstance(k, list) else k: v 
                                       for k, v in self.index_by_filter.items()}
             
+            # If cache contains no poses but OpenPose data exists, force a rescan.
+            if len(self.poses) == 0 and openpose_dir.exists():
+                has_png = any(openpose_dir.rglob("*.png"))
+                if has_png:
+                    debug_log("[DEBUG] _load_from_cache: WARNING: cache is empty but OpenPose PNGs are present; rescanning...")
+                    return False
+            
+            debug_log("[DEBUG] _load_from_cache: Cache load successful")
             return True
             
         except Exception as e:
-            print(f"[PoseRegistry] Error loading cache: {e}")
+            debug_log(f"[DEBUG] _load_from_cache: Error loading cache: {e}")
             return False
     
     def _save_to_cache(self):
@@ -119,46 +172,7 @@ class PoseRegistry:
                 return candidate
             print(f"[PoseRegistry] WARNING: OPENPOSE_MODELS_PATH is set but does not exist: {candidate}")
 
-        try:
-            folder_paths = importlib.import_module("folder_paths")
-        except (ImportError, ModuleNotFoundError) as exc:
-            print(f"[PoseRegistry] ERROR: folder_paths module unavailable: {exc}")
-            return Path("")
-
-        models_dir = None
-        for attr_name in ["get_models_dir", "get_models_directory", "get_models_path", "get_model_dir"]:
-            if hasattr(folder_paths, attr_name):
-                try:
-                    candidate = Path(getattr(folder_paths, attr_name)())
-                    if candidate.exists():
-                        models_dir = candidate
-                        break
-                except Exception:
-                    continue
-
-        if models_dir is None and hasattr(folder_paths, "get_input_directory"):
-            try:
-                input_dir = Path(folder_paths.get_input_directory())
-                candidate = input_dir.parent / "models"
-                if candidate.exists():
-                    models_dir = candidate
-                else:
-                    # Allow fallback to the parent of the ComfyUI user directory
-                    candidate = input_dir / ".." / "models"
-                    if candidate.exists():
-                        models_dir = candidate
-            except Exception:
-                pass
-
-        if models_dir is None:
-            # Fallback from current package location: search up for a sibling models/openpose folder.
-            current_dir = Path(__file__).resolve()
-            for parent in current_dir.parents:
-                candidate = parent / "models"
-                if candidate.exists() and (candidate / "openpose").exists():
-                    models_dir = candidate
-                    break
-
+        models_dir = self._resolve_models_dir()
         if models_dir is None:
             print("[PoseRegistry] ERROR: could not resolve ComfyUI models directory from folder_paths or package location")
             return Path("")
@@ -169,6 +183,58 @@ class PoseRegistry:
 
         print(f"[PoseRegistry] WARNING: expected openpose directory not found: {openpose_dir}")
         return Path("")
+
+    def _resolve_models_dir(self) -> Optional[Path]:
+        models_dir = None
+        try:
+            folder_paths = importlib.import_module("folder_paths")
+        except (ImportError, ModuleNotFoundError) as exc:
+            print(f"[PoseRegistry] ERROR: folder_paths module unavailable: {exc}")
+            folder_paths = None
+
+        if folder_paths is not None:
+            for attr_name in ["get_models_dir", "get_models_directory", "get_models_path", "get_model_dir"]:
+                if hasattr(folder_paths, attr_name):
+                    try:
+                        candidate = Path(getattr(folder_paths, attr_name)())
+                        if candidate.exists():
+                            models_dir = candidate
+                            break
+                    except Exception:
+                        continue
+
+            if models_dir is None and hasattr(folder_paths, "get_input_directory"):
+                try:
+                    input_dir = Path(folder_paths.get_input_directory())
+                    candidate = input_dir.parent / "models"
+                    if candidate.exists():
+                        models_dir = candidate
+                    else:
+                        candidate = (input_dir / ".." / "models").resolve()
+                        if candidate.exists():
+                            models_dir = candidate
+                except Exception:
+                    pass
+
+        if models_dir is None:
+            models_dir = self._find_models_dir_by_search()
+            if models_dir is not None:
+                print(f"[PoseRegistry] INFO: Found ComfyUI models directory by search: {models_dir}")
+
+        return models_dir
+
+    @staticmethod
+    def _find_models_dir_by_search() -> Optional[Path]:
+        search_roots = [Path(__file__).resolve().parent, Path.cwd()]
+        for root in search_roots:
+            for parent in [root] + list(root.parents):
+                candidate = parent / "models"
+                if candidate.exists() and (candidate / "openpose").exists():
+                    return candidate
+                candidate = parent / "ComfyUI" / "models"
+                if candidate.exists() and (candidate / "openpose").exists():
+                    return candidate
+        return None
 
     @staticmethod
     def _normalize_token(value: str) -> str:
@@ -504,8 +570,12 @@ class PoseRegistry:
         Returns:
             List of matching pose IDs
         """
+        debug_log(f"[DEBUG] search: Called with pose={pose}, variant={variant}, subpose={subpose}")
+        debug_log(f"[DEBUG] search: Registry has {len(self.poses)} total poses")
+        
         if pose is None:
             # Return all poses
+            debug_log(f"[DEBUG] search: No pose filter, returning all {len(self.poses)} pose IDs")
             return [p["id"] for p in self.poses]
         
         # Get all poses matching the given criteria
@@ -519,6 +589,7 @@ class PoseRegistry:
                 continue
             results.append(pose_data["id"])
         
+        debug_log(f"[DEBUG] search: Found {len(results)} matching poses")
         return results
     
     def get_available_variants(self, pose: str) -> List[str]:
@@ -554,7 +625,8 @@ class PoseRegistry:
     
     def list_all(self) -> List[Dict]:
         """Get all poses with their metadata (excluding keypoints)."""
-        return [
+        debug_log(f"[DEBUG] list_all: Called, registry has {len(self.poses)} poses")
+        result = [
             {
                 "id": p["id"],
                 "pose": p["pose"],
@@ -566,12 +638,22 @@ class PoseRegistry:
             }
             for p in self.poses
         ]
+        debug_log(f"[DEBUG] list_all: Returning {len(result)} pose summaries")
+        return result
 
 
 # Global singleton instance
-registry = PoseRegistry()
+registry = None
 
 
 def get_registry() -> PoseRegistry:
     """Get the global pose registry instance."""
+    global registry
+    debug_log(f"[DEBUG] get_registry: Called, current registry is {'None' if registry is None else 'initialized'}")
+    if registry is None:
+        debug_log("[DEBUG] get_registry: Creating new PoseRegistry instance")
+        registry = PoseRegistry()
+        debug_log(f"[DEBUG] get_registry: Registry created with {len(registry.poses)} poses")
+    else:
+        debug_log(f"[DEBUG] get_registry: Returning existing registry with {len(registry.poses)} poses")
     return registry

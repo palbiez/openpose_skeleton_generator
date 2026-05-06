@@ -8,40 +8,66 @@ from pathlib import Path
 import os
 from pathlib import Path
 
-try:
-    import folder_paths
-    models_dir = None
-    for attr_name in ["get_models_dir", "get_models_directory", "get_models_path", "get_model_dir"]:
-        if hasattr(folder_paths, attr_name):
-            try:
-                candidate = Path(getattr(folder_paths, attr_name)())
-                if candidate.exists():
-                    models_dir = candidate
-                    break
-            except Exception:
-                continue
+def _find_comfyui_models_dir() -> Path:
+    env_path = os.getenv("OPENPOSE_MODELS_PATH")
+    if env_path:
+        candidate = Path(env_path)
+        if candidate.exists():
+            return candidate
+        print(f"[PoseMatcher] WARNING: OPENPOSE_MODELS_PATH is set but does not exist: {candidate}")
 
-    if models_dir is None and hasattr(folder_paths, "get_input_directory"):
-        try:
-            input_dir = Path(folder_paths.get_input_directory())
-            candidate = input_dir.parent / "models"
-            if candidate.exists():
-                models_dir = candidate
-            else:
-                candidate = (input_dir / ".." / "models").resolve()
+    models_dir = None
+    try:
+        import folder_paths
+    except (ImportError, ModuleNotFoundError) as exc:
+        print(f"[PoseMatcher] INFO: folder_paths module unavailable: {exc}")
+        folder_paths = None
+    else:
+        for attr_name in ["get_models_dir", "get_models_directory", "get_models_path", "get_model_dir"]:
+            if hasattr(folder_paths, attr_name):
+                try:
+                    candidate = Path(getattr(folder_paths, attr_name)())
+                    if candidate.exists():
+                        models_dir = candidate
+                        break
+                except Exception:
+                    continue
+
+        if models_dir is None and hasattr(folder_paths, "get_input_directory"):
+            try:
+                input_dir = Path(folder_paths.get_input_directory())
+                candidate = input_dir.parent / "models"
                 if candidate.exists():
                     models_dir = candidate
-        except Exception:
-            pass
+                else:
+                    candidate = (input_dir / ".." / "models").resolve()
+                    if candidate.exists():
+                        models_dir = candidate
+            except Exception:
+                pass
 
     if models_dir is None:
-        raise AttributeError("could not resolve ComfyUI models directory from folder_paths")
+        search_roots = [Path(__file__).resolve().parent, Path.cwd()]
+        for root in search_roots:
+            for parent in [root] + list(root.parents):
+                candidate = parent / "models"
+                if candidate.exists() and (candidate / "openpose").exists():
+                    models_dir = candidate
+                    break
+                candidate = parent / "ComfyUI" / "models"
+                if candidate.exists() and (candidate / "openpose").exists():
+                    models_dir = candidate
+                    break
+            if models_dir is not None:
+                break
 
-    REFERENCE_DIR = models_dir / "openpose"
+    return models_dir or Path("")
+
+REFERENCE_DIR = _find_comfyui_models_dir()
+if REFERENCE_DIR:
     print("[PoseMatcher] Using ComfyUI models/openpose directory")
-except Exception as exc:
-    REFERENCE_DIR = Path("")
-    print("[PoseMatcher] ERROR: folder_paths module unavailable or models path not resolvable:", exc)
+else:
+    print("[PoseMatcher] ERROR: could not resolve ComfyUI models path")
 
 print(f"[PoseMatcher] Using path: {REFERENCE_DIR}")
 # --------------------------------------------------

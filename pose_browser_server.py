@@ -3,30 +3,36 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pathlib import Path
-from pose_registry import get_registry
+from pose_registry import get_registry, debug_log
 import json
 import math
 import uvicorn
 
 app = FastAPI(title="PAL OpenPose Browser")
+debug_log("[DEBUG] pose_browser_server: Starting server initialization")
 registry = get_registry()
-print(f"[Server] Registry loaded with {len(registry.poses)} poses")
+debug_log(f"[DEBUG] pose_browser_server: Registry loaded with {len(registry.poses)} poses")
+debug_log(f"[DEBUG] pose_browser_server: First pose sample: {registry.poses[0] if registry.poses else 'No poses'}")
 
 static_dir = Path(__file__).parent / "web" / "pose_browser"
 
 
 @app.get("/api/poses")
 def get_all_poses(page: int = Query(1, ge=1), limit: int = Query(50, ge=1, le=500)):
+    debug_log(f"[DEBUG] /api/poses: Called with page={page}, limit={limit}")
     poses = registry.list_all()
+    debug_log(f"[DEBUG] /api/poses: registry.list_all() returned {len(poses)} poses")
     total = len(poses)
     start = (page - 1) * limit
     end = start + limit
-    return {
+    result = {
         "total": total,
         "page": page,
         "limit": limit,
         "poses": poses[start:end]
     }
+    debug_log(f"[DEBUG] /api/poses: Returning {len(result['poses'])} poses for page {page}")
+    return result
 
 
 @app.get("/api/filter")
@@ -38,22 +44,25 @@ def filter_poses(
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=500)
 ):
-    print(f"[API] Filter request: pose={pose}, variant={variant}, subpose={subpose}, search={search}")
-    print(f"[API] Registry has {len(registry.poses)} poses")
+    debug_log(f"[DEBUG] /api/filter: Called with pose={pose}, variant={variant}, subpose={subpose}, search={search}, page={page}, limit={limit}")
+    debug_log(f"[DEBUG] /api/filter: Registry has {len(registry.poses)} poses")
     
     # Use direct access instead of search method for debugging
     if pose is None and variant is None and subpose is None:
+        debug_log("[DEBUG] /api/filter: No filters specified, using all poses")
         matching_ids = [p["id"] for p in registry.poses]
     else:
+        debug_log(f"[DEBUG] /api/filter: Using registry.search with pose={pose}, variant={variant}, subpose={subpose}")
         matching_ids = registry.search(pose=pose, variant=variant, subpose=subpose)
     
-    print(f"[API] Found {len(matching_ids)} matching IDs")
+    debug_log(f"[DEBUG] /api/filter: Found {len(matching_ids)} matching IDs")
     poses = []
     normalized_search = search.strip().lower() if isinstance(search, str) else None
 
     for pose_id in matching_ids:
         pose_data = registry.get_pose_by_id(pose_id)
         if not pose_data:
+            debug_log(f"[DEBUG] /api/filter: Pose ID {pose_id} not found in registry")
             continue
 
         if normalized_search:
@@ -81,13 +90,15 @@ def filter_poses(
     total_pages = math.ceil(total / limit) if total else 0
     start = (page - 1) * limit
     end = start + limit
-    return {
+    result = {
         "count": total,
         "page": page,
         "limit": limit,
         "total_pages": total_pages,
         "poses": poses[start:end]
     }
+    debug_log(f"[DEBUG] /api/filter: Returning result with count={result['count']}, poses_in_page={len(result['poses'])}")
+    return result
 
 
 @app.get("/api/options")
@@ -162,6 +173,7 @@ if static_dir.exists():
 if __name__ == "__main__":
     host = os.getenv("OPENPOSE_BROWSER_HOST", "0.0.0.0")
     port = int(os.getenv("OPENPOSE_BROWSER_PORT", "8189"))
-    print(f"Starting PAL OpenPose Browser on http://{host}:{port}")
-    print(f"Loaded {len(registry.list_all())} poses")
+    debug_log(f"[DEBUG] __main__: Starting PAL OpenPose Browser on http://{host}:{port}")
+    debug_log(f"[DEBUG] __main__: Registry has {len(registry.list_all())} poses from list_all()")
+    debug_log(f"[DEBUG] __main__: Registry has {len(registry.poses)} poses from direct access")
     uvicorn.run(app, host=host, port=port)

@@ -19,14 +19,18 @@ from pose_registry import PoseRegistry
 def main():
     print("Building pose registry cache...")
     
-    # Force fresh scan by temporarily renaming cache file
     cache_file = Path(__file__).parent / "pose_registry_cache.json"
-    temp_cache = None
+    temp_cache = cache_file.with_suffix('.tmp')
+
+    if temp_cache.exists():
+        print(f"Found stale temp cache file, removing: {temp_cache}")
+        temp_cache.unlink()
+
     if cache_file.exists():
-        temp_cache = cache_file.with_suffix('.tmp')
         cache_file.rename(temp_cache)
         print("Temporarily moved existing cache for fresh scan")
 
+    success = False
     try:
         # Create a temporary registry instance to scan poses
         registry = PoseRegistry.__new__(PoseRegistry)
@@ -37,14 +41,19 @@ def main():
 
         # Initialize and load poses (this will scan all PNG files and save cache)
         registry.__init__()
+        success = True
 
         print(f"Cache building completed for {len(registry.poses)} poses")
-        
     finally:
-        # Restore original cache if it existed
-        if temp_cache and temp_cache.exists():
-            temp_cache.rename(cache_file)
-            print("Restored original cache")
+        if temp_cache.exists():
+            if success:
+                temp_cache.unlink()
+                print("Removed backup of previous cache")
+            else:
+                if cache_file.exists():
+                    cache_file.unlink()
+                temp_cache.rename(cache_file)
+                print("Restored original cache after failed build")
 
 if __name__ == "__main__":
     main()
