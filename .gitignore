@@ -31,6 +31,7 @@ web/pose_thumbnails/
 models/
 openpose/
 
+
 # Local editor state
 .vscode/*
 !.vscode/settings.json
