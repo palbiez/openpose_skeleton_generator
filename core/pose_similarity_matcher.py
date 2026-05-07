@@ -1,12 +1,16 @@
 import json
 import numpy as np
-from pathlib import Path
 
 # --------------------------------------------------
 # CONFIG
 # --------------------------------------------------
 import os
 from pathlib import Path
+
+try:
+    from .openpose_io import coerce_keypoints, keypoints_to_canonical17
+except ImportError:
+    from openpose_io import coerce_keypoints, keypoints_to_canonical17
 
 def _find_comfyui_models_dir() -> Path:
     env_path = os.getenv("OPENPOSE_MODELS_PATH")
@@ -63,9 +67,10 @@ def _find_comfyui_models_dir() -> Path:
 
     return models_dir or Path("")
 
-REFERENCE_DIR = _find_comfyui_models_dir()
+MODELS_DIR = _find_comfyui_models_dir()
+REFERENCE_DIR = MODELS_DIR / "openpose" if (MODELS_DIR / "openpose").exists() else MODELS_DIR
 if REFERENCE_DIR:
-    print("[PoseMatcher] Using ComfyUI models/openpose directory")
+    print("[PoseMatcher] Using OpenPose reference directory")
 else:
     print("[PoseMatcher] ERROR: could not resolve ComfyUI models path")
 
@@ -80,16 +85,15 @@ def reshape(kp):
 
 def normalize(kp):
 
-    kp = np.array(kp, dtype=np.float32)
-
-    # Handle different keypoint lengths (51 = 17*3, 54 = 18*3)
-    if len(kp) == 54:
-        # Take first 17 keypoints (skip the last one, usually neck/back)
-        kp = kp[:51]
-    elif len(kp) != 51:
+    keypoints = coerce_keypoints(kp)
+    if not keypoints:
         return None
 
-    kp = kp.reshape(17, 3)
+    canonical = keypoints_to_canonical17(keypoints)
+    if canonical is None:
+        return None
+
+    kp = np.array(canonical, dtype=np.float32).reshape(17, 3)
 
     valid = kp[:, 2] > 0
     pts = kp[valid][:, :2]
@@ -117,10 +121,49 @@ def load_reference():
     vectors = []
     meta = []
 
-    for file in REFERENCE_DIR.glob("*.json"):
+    try:
+        try:
+            from .pose_registry import get_registry
+        except ImportError:
+            from pose_registry import get_registry
+
+        registry = get_registry()
+        for item in registry.poses:
+            if not item.get("json_path"):
+                continue
+
+            keypoints = registry.get_keypoints_by_id(item["id"])
+            if not keypoints:
+                continue
+
+            norm = normalize(keypoints)
+            if norm is None:
+                continue
+
+            vectors.append(norm)
+            meta.append({
+                "id": item["id"],
+                "pose": item["pose"],
+                "variant": item["variant"],
+                "subpose": item["subpose"],
+                "attributes": item.get("attributes", []),
+                "keypoints": keypoints,
+                "source_file": item.get("json_path") or item.get("source_file")
+            })
+
+        if vectors:
+            return np.array(vectors), meta
+    except Exception as exc:
+        print(f"[PoseMatcher] Registry reference load failed: {exc}")
+
+    reference_dir = REFERENCE_DIR / "openpose" if (REFERENCE_DIR / "openpose").exists() else REFERENCE_DIR
+    for file in reference_dir.glob("*.json"):
 
         with open(file, "r", encoding="utf-8") as f:
             data = json.load(f)
+
+        if not isinstance(data, list):
+            continue
 
         for item in data:
             norm = normalize(item["keypoints"])
@@ -201,16 +244,17 @@ class PoseMatcher:
     def match(self, keypoints, top_k=3):
 
         idx, dists = self.match_indices(keypoints, top_k)
+        if idx is None:
+            return None
+
         print(f"[PoseMatcher] Top {top_k} matches:")
         for i in idx:
             print(f"  -> {self.meta[i]['pose']} | {self.meta[i]['subpose']} | score={dists[i]:.4f}")
 
-        if idx is None:
-            return None
-
         results = []
         for i in idx:
             results.append({
+                "id": self.meta[i].get("id"),
                 "score": float(dists[i]),
                 "pose": self.meta[i]["pose"],
                 "variant": self.meta[i]["variant"],

@@ -63,6 +63,10 @@
             color: #f3f7ff;
             font-size: 0.95rem;
         }
+        select option {
+            background: #f8fafc;
+            color: #111827;
+        }
         select:focus, input:focus { outline: none; border-color: #5ba1ff; }
         .controls {
             display: flex;
@@ -112,6 +116,15 @@
             height: 240px;
             object-fit: contain;
             background: #0e1118;
+        }
+        .no-preview {
+            width: 100%;
+            height: 240px;
+            display: grid;
+            place-items: center;
+            background: #0e1118;
+            color: #7f8daa;
+            font-size: 0.92rem;
         }
         .card-body {
             padding: 16px;
@@ -166,7 +179,30 @@
             background: rgba(255,255,255,0.08);
             color: #dce9ff;
         }
+        .btn-copy:disabled {
+            cursor: not-allowed;
+            opacity: 0.45;
+            transform: none;
+        }
         .btn-copy.copied { background: #91f2a1; color: #0f172a; }
+        .pagination {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 12px;
+            align-items: center;
+            margin-top: 22px;
+        }
+        .pagination span {
+            color: #a7b7d6;
+            min-width: 140px;
+            text-align: center;
+        }
+        .pagination button:disabled {
+            cursor: not-allowed;
+            opacity: 0.45;
+            transform: none;
+        }
         .empty, .error, .loading {
             border-radius: 18px;
             background: rgba(255,255,255,0.04);
@@ -181,7 +217,7 @@
     <div class="page">
         <header>
             <h1>PAL OpenPose Browser</h1>
-            <p>Durchsuche deine OpenPose-DB, filtere nach Pose / Variant / Subpose und kopiere die gewünschte ID für den ComfyUI-Node.</p>
+            <p>Durchsuche deine OpenPose-DB, filtere nach Pose / Variant / Subpose und kopiere die gewünschte Pose als JSON.</p>
         </header>
 
         <div class="filters">
@@ -210,12 +246,13 @@
 
         <div class="stats">
             <div><strong id="pose-count">0</strong> Posen gefunden</div>
-            <div id="summary-text">ID kopieren und im ComfyUI-Pose-Node einfügen.</div>
+            <div id="summary-text">Pose-JSON aus der Quelldatei kopieren.</div>
         </div>
 
         <div id="error-container"></div>
         <div id="loading" class="loading" style="display:none;">Lade Posen...</div>
         <div id="gallery" class="gallery"></div>
+        <div id="pagination" class="pagination" style="display:none;"></div>
         <div id="empty" class="empty" style="display:none;">Keine Posen gefunden. Passe die Filter an.</div>
     </div>
 
@@ -228,10 +265,42 @@
         const loading = document.getElementById('loading');
         const empty = document.getElementById('empty');
         const poseCount = document.getElementById('pose-count');
+        const summaryText = document.getElementById('summary-text');
+        const pagination = document.getElementById('pagination');
         let currentPage = 1;
         let pageSize = 60;
         let totalPages = 0;
+        let totalCount = 0;
         let currentResults = [];
+
+        const fallbackImage = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAQAAADK4KPXAAAAF0lEQVR42u3BAQ0AAADCoPdPbQ43oAAAAAAAAAAA4G3rBAABvG6NSAAAAAElFTkSuQmCC';
+
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, char => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            })[char]);
+        }
+
+        async function writeClipboard(text) {
+            if (navigator.clipboard?.writeText) {
+                await navigator.clipboard.writeText(text);
+                return;
+            }
+
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.setAttribute('readonly', '');
+            textarea.style.position = 'fixed';
+            textarea.style.left = '-9999px';
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            textarea.remove();
+        }
 
         async function loadFilterOptions() {
             showLoading(true);
@@ -320,6 +389,7 @@
                 const data = await response.json();
                 currentPage = data.page;
                 totalPages = data.total_pages || 0;
+                totalCount = data.count || 0;
                 currentResults = data.poses || [];
                 renderResults();
             } catch (err) {
@@ -330,51 +400,102 @@
         }
 
         function renderResults() {
+            poseCount.textContent = `${totalCount}`;
+            summaryText.textContent = totalPages > 1
+                ? `Seite ${currentPage} von ${totalPages} · ${currentResults.length} pro Seite sichtbar`
+                : 'Pose-JSON aus der Quelldatei kopieren.';
+
             if (!currentResults.length) {
                 gallery.innerHTML = '';
                 empty.style.display = 'block';
-                poseCount.textContent = '0';
+                renderPagination();
                 return;
             }
 
             empty.style.display = 'none';
-            poseCount.textContent = `${currentResults.length}`;
 
             gallery.innerHTML = currentResults.map(pose => {
                 const attributes = Array.isArray(pose.attributes) ? pose.attributes : [];
-                const attributeTags = attributes.map(attr => `<span class="attribute">${attr}</span>`).join('');
+                const attributeTags = attributes.map(attr => `<span class="attribute">${escapeHtml(attr)}</span>`).join('');
+                const imageMarkup = pose.image_url
+                    ? `<img src="${escapeHtml(pose.image_url)}" data-preview-src="${escapeHtml(pose.image_url)}" data-hover-src="${escapeHtml(pose.hover_image_url || pose.image_url)}" alt="Pose ${escapeHtml(pose.id)}" onmouseenter="swapPoseImage(this, true)" onmouseleave="swapPoseImage(this, false)" onerror="this.src='${fallbackImage}'">`
+                    : '<div class="no-preview">Kein Preview</div>';
+                const copyButton = pose.copy_json_url
+                    ? `<button class="btn-copy" type="button" onclick="copyPoseJson(${pose.id}, this)">JSON kopieren</button>`
+                    : '<button class="btn-copy" type="button" disabled>Kein JSON</button>';
                 return `
                     <article class="card">
-                        <img src="${pose.image_url}" alt="Pose ${pose.id}" onerror="this.src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAQAAADK4KPXAAAAF0lEQVR42u3BAQ0AAADCoPdPbQ43oAAAAAAAAAAA4G3rBAABvG6NSAAAAAElFTkSuQmCC'">
+                        ${imageMarkup}
                         <div class="card-body">
                             <div class="card-title">
-                                <h2>#${pose.id}</h2>
-                                <span class="tag">${pose.variant || '—'}</span>
+                                <h2>#${escapeHtml(pose.id)}</h2>
+                                <span class="tag">${escapeHtml(pose.variant || '-')}</span>
                             </div>
                             <div class="meta">
-                                <span><strong>Pose:</strong> ${pose.pose}</span>
-                                <span><strong>Subpose:</strong> ${pose.subpose}</span>
-                                <span><strong>Quelle:</strong> ${pose.source_file || 'unbekannt'}</span>
+                                <span><strong>Pose:</strong> ${escapeHtml(pose.pose)}</span>
+                                <span><strong>Gender:</strong> ${escapeHtml(pose.gender || 'unknown')}</span>
+                                <span><strong>Subpose:</strong> ${escapeHtml(pose.subpose)}</span>
+                                <span><strong>Datei:</strong> ${escapeHtml(pose.base_name || pose.source_file || 'unbekannt')}</span>
                             </div>
                             ${attributeTags ? `<div class="attributes">${attributeTags}</div>` : ''}
                             <div class="actions">
-                                <button class="btn-copy" type="button" onclick="copyId(${pose.id}, this)">ID kopieren</button>
+                                ${copyButton}
                             </div>
                         </div>
                     </article>
                 `;
             }).join('');
+            renderPagination();
         }
 
-        function copyId(id, button) {
-            navigator.clipboard.writeText(String(id)).then(() => {
+        function swapPoseImage(image, useHover) {
+            const nextSrc = useHover ? image.dataset.hoverSrc : image.dataset.previewSrc;
+            if (nextSrc && image.getAttribute('src') !== nextSrc) {
+                image.setAttribute('src', nextSrc);
+            }
+        }
+
+        function renderPagination() {
+            if (totalPages <= 1) {
+                pagination.style.display = 'none';
+                pagination.innerHTML = '';
+                return;
+            }
+
+            pagination.style.display = 'flex';
+            pagination.innerHTML = `
+                <button class="btn-secondary" type="button" ${currentPage <= 1 ? 'disabled' : ''} onclick="applyFilters(${currentPage - 1})">Zurueck</button>
+                <span>Seite ${currentPage} / ${totalPages}</span>
+                <button class="btn-secondary" type="button" ${currentPage >= totalPages ? 'disabled' : ''} onclick="applyFilters(${currentPage + 1})">Weiter</button>
+            `;
+        }
+
+        async function copyPoseJson(id, button) {
+            const originalText = button.textContent;
+            button.disabled = true;
+            try {
+                const response = await fetch(`/api/pose/${id}/copy`);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                const data = await response.json();
+                await writeClipboard(data.text || '');
                 button.classList.add('copied');
                 button.textContent = 'Kopiert';
                 setTimeout(() => {
                     button.classList.remove('copied');
-                    button.textContent = 'ID kopieren';
+                    button.textContent = originalText;
+                    button.disabled = false;
                 }, 1400);
-            });
+            } catch (err) {
+                console.error(err);
+                button.textContent = 'Fehler';
+                showError('JSON konnte nicht kopiert werden.');
+                setTimeout(() => {
+                    button.textContent = originalText;
+                    button.disabled = false;
+                }, 1600);
+            }
         }
 
         function resetFilters() {

@@ -4,24 +4,28 @@ import subprocess
 import sys
 from pathlib import Path
 
-from .skeleton_generator import SkeletonFromJSON
-from .pose_matcher_node import PoseMatcherNode
-from .pose_selector_node import PoseSelectorNode
-from .pose_from_structure_node import PoseFromStructureNode
-from .pose_browser_node import PoseStructureByIdNode, PoseBrowserLauncherNode
+from .nodes.ollama_pose_parser_node import OllamaPoseParserNode
+from .nodes.pose_browser_node import PoseBrowserLauncherNode, PoseLoadByIdNode, PoseStructureByIdNode
+from .nodes.pose_from_structure_node import PoseFromStructureNode
+from .nodes.pose_matcher_node import PoseMatcherNode
+from .nodes.pose_renderer_node import PoseOpenPoseRendererNode, SkeletonFromJSON
+from .nodes.pose_selector_node import PoseSelectorNode
 
 # Import debug_log from pose_registry
 try:
-    from .pose_registry import debug_log
+    from .core.pose_registry import debug_log
 except ImportError:
     def debug_log(message: str):
         print(message)
 
 NODE_CLASS_MAPPINGS = {
+    "OllamaPoseParserNode": OllamaPoseParserNode,
+    "PoseOpenPoseRendererNode": PoseOpenPoseRendererNode,
     "SkeletonFromJSON": SkeletonFromJSON,
     "PoseMatcherNode": PoseMatcherNode,
     "PoseSelectorNode": PoseSelectorNode,
     "PoseFromStructureNode": PoseFromStructureNode,
+    "PoseLoadByIdNode": PoseLoadByIdNode,
     "PoseStructureByIdNode": PoseStructureByIdNode,
     "PoseBrowserLauncherNode": PoseBrowserLauncherNode,
 }
@@ -71,8 +75,8 @@ def _launch_browser_server() -> None:
         subprocess.Popen(
             cmd,
             cwd=str(server_script.parent),
-            stdout=None,  # Show output for debugging
-            stderr=None,  # Show errors for debugging
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
             stdin=subprocess.DEVNULL,
             env=env,
             creationflags=creationflags,
@@ -82,18 +86,22 @@ def _launch_browser_server() -> None:
         debug_log(f"[DEBUG] _launch_browser_server: Server start failed: {exc}")
 
 
-try:
-    _launch_browser_server()
-except Exception as exc:
-    debug_log(f"[PAL OpenPose Browser] auto-start initialization failed: {exc}")
+if os.getenv("OPENPOSE_BROWSER_AUTOSTART", "1").lower() not in {"0", "false", "no"}:
+    try:
+        _launch_browser_server()
+    except Exception as exc:
+        debug_log(f"[PAL OpenPose Browser] auto-start initialization failed: {exc}")
 
 WEB_DIRECTORY = "web"
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "SkeletonFromJSON": "PAL Skeleton From JSON",
+    "OllamaPoseParserNode": "PAL Ollama Pose Parser",
+    "PoseOpenPoseRendererNode": "PAL OpenPose Renderer",
+    "SkeletonFromJSON": "PAL Skeleton From IDs (Legacy)",
     "PoseMatcherNode": "PAL Pose Matcher",
     "PoseSelectorNode": "PAL Pose Selector",
     "PoseFromStructureNode": "PAL Pose From Structure",
+    "PoseLoadByIdNode": "PAL Pose By ID",
     "PoseStructureByIdNode": "PAL Pose Structure by ID",
     "PoseBrowserLauncherNode": "PAL OpenPose Browser Launcher",
 }

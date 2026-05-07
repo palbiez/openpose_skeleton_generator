@@ -6,13 +6,24 @@ Loads all poses from PNG-based database and provides search API.
 import importlib
 import json
 import os
+import re
 import subprocess
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple
 from PIL import Image
 
 # DEBUG logging setup
-DEBUG_LOG_FILE = Path(__file__).parent / "debug_log.txt"
+PLUGIN_ROOT = Path(__file__).resolve().parent.parent
+DEBUG_LOG_FILE = PLUGIN_ROOT / "debug_log.txt"
+CACHE_FILE = PLUGIN_ROOT / "pose_registry_cache.json"
+CACHE_SCHEMA_VERSION = 4
+
+POSE_FILE_SUFFIX_RE = re.compile(
+    r"_(dup\d+|duplicate\d*|copy\d*|bone_structure_full|bone_structure|openposefull|openposehand|openpose|"
+    r"depthhand|normalhand|cannyhand|line_art|lineart|linart|canny|depth|normal)"
+    r"(_[a-z0-9]+)?$",
+    re.IGNORECASE,
+)
 
 def debug_log(message: str):
     """Write debug message to log file and console."""
@@ -70,7 +81,7 @@ class PoseRegistry:
     
     def _load_from_cache(self) -> bool:
         """Try to load poses from cache file. Returns True if successful."""
-        cache_file = Path(__file__).parent / "pose_registry_cache.json"
+        cache_file = CACHE_FILE
         debug_log(f"[DEBUG] _load_from_cache: Checking cache file: {cache_file}")
         if not cache_file.exists():
             debug_log("[DEBUG] _load_from_cache: Cache file does not exist")
@@ -84,46 +95,50 @@ class PoseRegistry:
                 cache_data = json.load(f)
             
             debug_log(f"[DEBUG] _load_from_cache: Cache data loaded, keys: {list(cache_data.keys())}")
+            if cache_data.get("schema_version") != CACHE_SCHEMA_VERSION:
+                debug_log("[DEBUG] _load_from_cache: Cache schema changed, rescanning...")
+                return False
             
             # Check if cache is still valid by comparing file modification times
             openpose_dir = self._get_openpose_dir()
             debug_log(f"[DEBUG] _load_from_cache: OpenPose directory: {openpose_dir}")
             if openpose_dir.exists():
                 cache_mtime = cache_file.stat().st_mtime
-                newest_png = 0
-                png_count = 0
-                for png_path in openpose_dir.rglob("*.png"):
-                    png_mtime = png_path.stat().st_mtime
-                    newest_png = max(newest_png, png_mtime)
-                    png_count += 1
+                newest_pose_file = 0
+                pose_file_count = 0
+                for pattern in ("*.png", "*.json"):
+                    for pose_path in openpose_dir.rglob(pattern):
+                        pose_mtime = pose_path.stat().st_mtime
+                        newest_pose_file = max(newest_pose_file, pose_mtime)
+                        pose_file_count += 1
                 
-                debug_log(f"[DEBUG] _load_from_cache: Found {png_count} PNG files, newest mtime: {newest_png}, cache mtime: {cache_mtime}")
+                debug_log(f"[DEBUG] _load_from_cache: Found {pose_file_count} pose files, newest mtime: {newest_pose_file}, cache mtime: {cache_mtime}")
                 
-                if newest_png > cache_mtime:
+                if newest_pose_file > cache_mtime:
                     debug_log("[DEBUG] _load_from_cache: Cache is outdated, rescanning...")
                     return False
             
-            # Load from cache
+            # Load from cache. The cache intentionally stores only metadata and
+            # source paths; keypoints are loaded lazily from the JSON/PNG files.
             debug_log("[DEBUG] _load_from_cache: Loading poses from cache data")
-            self.poses = cache_data["poses"]
+            self.poses = []
             self.poses_by_id = {}
-            for key, value in cache_data.get("poses_by_id", {}).items():
+            for value in cache_data.get("poses", []):
+                if not isinstance(value, dict):
+                    continue
+                pose_copy = value.copy()
+                self.poses.append(pose_copy)
                 try:
-                    key_int = int(key)
+                    key_int = int(pose_copy["id"])
                 except Exception:
-                    key_int = key
-                self.poses_by_id[key_int] = value
-            
-            # Convert string keys back to tuples for index_by_filter
-            if self.index_by_filter:
-                self.index_by_filter = {tuple(k) if isinstance(k, list) else k: v 
-                                      for k, v in self.index_by_filter.items()}
+                    continue
+                self.poses_by_id[key_int] = pose_copy
             
             # If cache contains no poses but OpenPose data exists, force a rescan.
             if len(self.poses) == 0 and openpose_dir.exists():
-                has_png = any(openpose_dir.rglob("*.png"))
-                if has_png:
-                    debug_log("[DEBUG] _load_from_cache: WARNING: cache is empty but OpenPose PNGs are present; rescanning...")
+                has_pose_files = any(openpose_dir.rglob("*.png")) or any(openpose_dir.rglob("*.json"))
+                if has_pose_files:
+                    debug_log("[DEBUG] _load_from_cache: WARNING: cache is empty but OpenPose files are present; rescanning...")
                     return False
             
             debug_log("[DEBUG] _load_from_cache: Cache load successful")
@@ -136,22 +151,35 @@ class PoseRegistry:
     def _save_to_cache(self):
         """Save current poses to cache file."""
         try:
-            cache_file = Path(__file__).parent / "pose_registry_cache.json"
+            cache_file = CACHE_FILE
             
-            # Convert poses to serializable format
+            cache_fields = [
+                "id",
+                "pose",
+                "gender",
+                "variant",
+                "subpose",
+                "attributes",
+                "base_name",
+                "png_path",
+                "json_path",
+                "display_image",
+                "bone_structure_path",
+                "bone_structure_full_path",
+                "source_file",
+            ]
+
+            # Convert poses to a compact serializable format. Do not persist
+            # keypoints or the duplicate files list; both can be derived from
+            # the source files when needed.
             serializable_poses = []
             for pose in self.poses:
-                pose_copy = pose.copy()
+                pose_copy = {field: pose.get(field) for field in cache_fields if field in pose}
                 serializable_poses.append(pose_copy)
-            
-            # Convert tuple keys to lists for JSON serialization
-            serializable_index = {list(k) if isinstance(k, tuple) else k: v 
-                                for k, v in self.index_by_filter.items()}
-            
+
             cache_data = {
+                "schema_version": CACHE_SCHEMA_VERSION,
                 "poses": serializable_poses,
-                "poses_by_id": self.poses_by_id,
-                "index_by_filter": serializable_index,
                 "total_poses": len(self.poses)
             }
             
@@ -189,7 +217,7 @@ class PoseRegistry:
         try:
             folder_paths = importlib.import_module("folder_paths")
         except (ImportError, ModuleNotFoundError) as exc:
-            print(f"[PoseRegistry] ERROR: folder_paths module unavailable: {exc}")
+            print(f"[PoseRegistry] INFO: folder_paths module unavailable outside ComfyUI: {exc}")
             folder_paths = None
 
         if folder_paths is not None:
@@ -225,7 +253,7 @@ class PoseRegistry:
 
     @staticmethod
     def _find_models_dir_by_search() -> Optional[Path]:
-        search_roots = [Path(__file__).resolve().parent, Path.cwd()]
+        search_roots = [PLUGIN_ROOT, Path.cwd()]
         for root in search_roots:
             for parent in [root] + list(root.parents):
                 candidate = parent / "models"
@@ -240,26 +268,45 @@ class PoseRegistry:
     def _normalize_token(value: str) -> str:
         return str(value).strip().lower().replace(" ", "_").replace("-", "_")
 
-    def _derive_pose_metadata(self, png_path: Path, openpose_dir: Path):
-        relative = png_path.relative_to(openpose_dir)
-        parts = [self._normalize_token(p) for p in relative.with_suffix("").parts if p]
+    @staticmethod
+    def _is_skipped_pose_file(path: Path) -> bool:
+        name = path.name.lower()
+        stem = path.stem.strip().lower()
+        if stem.startswith(("cover", "example", "thumb")):
+            return True
+        if "pose_thumbnails" in [part.lower() for part in path.parts]:
+            return True
+        return name.endswith((".bak", ".tmp"))
+
+    @staticmethod
+    def _strip_pose_file_suffix(stem: str) -> str:
+        base = stem.strip()
+        while True:
+            match = POSE_FILE_SUFFIX_RE.search(base)
+            if not match:
+                return base.strip()
+            base = base[:match.start()].rstrip()
+
+    def _derive_pose_metadata(self, file_path: Path, openpose_dir: Path, base_name: Optional[str] = None):
+        relative = file_path.relative_to(openpose_dir)
+        dir_parts = [self._normalize_token(p) for p in relative.parent.parts if p]
 
         pose = "unknown"
         gender = "unknown"
         variant = "base"
         subpose = "default"
 
-        if len(parts) >= 4:
-            pose, gender, variant, subpose = parts[:4]
-        elif len(parts) == 3:
-            pose, variant, subpose = parts
+        if len(dir_parts) >= 4:
+            pose, gender, variant, subpose = dir_parts[:4]
+        elif len(dir_parts) == 3:
+            pose, variant, subpose = dir_parts
             gender = "unknown"
-        elif len(parts) == 2:
-            pose, variant = parts
+        elif len(dir_parts) == 2:
+            pose, variant = dir_parts
             subpose = "default"
             gender = "unknown"
-        elif parts:
-            filename = parts[-1]
+        else:
+            filename = self._normalize_token(base_name or self._strip_pose_file_suffix(relative.stem))
             tokens = filename.split("_")
             if len(tokens) >= 3:
                 pose, variant, subpose = tokens[:3]
@@ -272,69 +319,144 @@ class PoseRegistry:
         return pose, gender, variant, subpose
 
     @staticmethod
-    def _choose_best_preview(images):
-        priority = [
-            "_canny.png",
-            "_line_art.png",
-            "_openposefull.png",
-            "_openpose.png",
-            "_bone_structure_full.png",
-            "_bone_structure.png",
-        ]
-        lower_names = {image.name.lower(): image for image in images}
-        for suffix in priority:
-            for name, image in lower_names.items():
-                if suffix in name:
-                    return image
-        return images[0] if images else None
+    def _select_file_by_suffix(files: List[Path], base_name: str, suffix: str) -> Optional[Path]:
+        expected = f"{base_name}{suffix}".lower()
+        for candidate in files:
+            if candidate.stem.lower() == expected:
+                return candidate
+        return None
 
-    def _find_associated_images(self, png_path: Path):
-        parent = png_path.parent
-        siblings = [p for p in parent.glob("*.png") if p.is_file()]
-        display = None
-        bone_structure = None
-        bone_structure_full = None
+    @staticmethod
+    def _select_file_by_pattern(files: List[Path], base_name: str, suffix: str) -> Optional[Path]:
+        prefix = f"{base_name}{suffix}_".lower()
+        matches = [candidate for candidate in files if candidate.stem.lower().startswith(prefix)]
+        return sorted(matches, key=lambda p: p.name.lower())[0] if matches else None
 
-        # Prefer exact file if it already matches display candidates.
-        candidate = self._choose_best_preview(siblings + [png_path])
-        if candidate is not None:
-            display = candidate
+    def _find_associated_images(self, base_name: str, files: List[Path]):
+        images = sorted(
+            [path for path in files if path.suffix.lower() == ".png" and not self._is_skipped_pose_file(path)],
+            key=lambda path: path.name.lower(),
+        )
+        depth = self._select_file_by_suffix(images, base_name, "_depth")
+        depth_variant = self._select_file_by_pattern(images, base_name, "_depth")
+        bone_structure_full = self._select_file_by_suffix(images, base_name, "_bone_structure_full")
+        bone_structure = self._select_file_by_suffix(images, base_name, "_bone_structure")
 
-        for candidate in siblings:
-            name = candidate.name.lower()
-            if "_bone_structure_full" in name and bone_structure_full is None:
-                bone_structure_full = candidate
-            elif "_bone_structure.png" in name and bone_structure is None:
-                bone_structure = candidate
+        display = depth or depth_variant or bone_structure or bone_structure_full
 
         if bone_structure is None and bone_structure_full is not None:
             bone_structure = bone_structure_full
 
-        if display is None:
-            display = png_path
-
         return display, bone_structure, bone_structure_full
 
+    def _find_associated_json(self, base_name: str, files: List[Path]) -> Optional[Path]:
+        json_files = sorted(
+            [path for path in files if path.suffix.lower() == ".json" and not self._is_skipped_pose_file(path)],
+            key=lambda path: path.name.lower(),
+        )
+        if not json_files:
+            return None
+
+        base = base_name.lower()
+        exact_openpose = f"{base}_openpose"
+        exact_plain = base
+
+        def score(candidate: Path):
+            stem = candidate.stem.lower()
+            if stem == exact_openpose:
+                return (0, stem)
+            if stem == exact_plain:
+                return (1, stem)
+            if stem.startswith(f"{base}_") and stem.endswith("_openpose"):
+                variant = stem[len(base) + 1:-len("_openpose")]
+                duplicate_penalty = 10 if variant.startswith(("dup", "duplicate", "copy")) else 0
+                return (2 + duplicate_penalty, stem)
+            return (99, stem)
+
+        matches = [candidate for candidate in json_files if score(candidate)[0] < 99]
+        return sorted(matches, key=score)[0] if matches else json_files[0]
+
+    @staticmethod
+    def _normalize_attributes(attributes) -> List[str]:
+        if attributes is None:
+            return []
+        if isinstance(attributes, str):
+            attributes = [attributes]
+        if not isinstance(attributes, list):
+            attributes = [attributes]
+
+        normalized = []
+        seen = set()
+        for attribute in attributes:
+            value = str(attribute).strip().lower().replace(" ", "_").replace("-", "_")
+            if value and value not in seen:
+                normalized.append(value)
+                seen.add(value)
+        return normalized
+
+    def _extract_attributes_from_json(self, json_path: Optional[Path]) -> List[str]:
+        if json_path is None:
+            return []
+        try:
+            with open(json_path, "r", encoding="utf-8-sig") as f:
+                data = json.load(f)
+        except Exception as e:
+            print(f"[PoseRegistry] Error extracting attributes from {json_path}: {e}")
+            return []
+
+        if not isinstance(data, dict):
+            return []
+
+        attributes = []
+        meta = data.get("meta")
+        if isinstance(meta, dict):
+            attributes.extend(self._normalize_attributes(meta.get("attributes")))
+            attributes.extend(self._normalize_attributes(meta.get("auto_attributes")))
+
+        attributes.extend(self._normalize_attributes(data.get("attributes")))
+
+        people = data.get("people")
+        if isinstance(people, list) and people and isinstance(people[0], dict):
+            attributes.extend(self._normalize_attributes(people[0].get("attributes")))
+
+        return self._normalize_attributes(attributes)
+
     def _scan_openpose_folder(self, openpose_dir: Path, pose_attributes):
-        # Create one pose per PNG file instead of grouping
-        pose_id = 1
-        
-        for png_path in openpose_dir.rglob("*.png"):
-            name = png_path.name.lower()
-            if name.startswith("cover") or name.startswith("example") or name.startswith("thumb"):
+        grouped_files: Dict[Tuple[str, str], List[Path]] = {}
+        group_names: Dict[Tuple[str, str], str] = {}
+
+        for file_path in openpose_dir.rglob("*"):
+            if not file_path.is_file() or file_path.suffix.lower() not in {".png", ".json"}:
                 continue
-            if "pose_thumbnails" in str(png_path.parts).lower():
+            if self._is_skipped_pose_file(file_path):
                 continue
 
-            pose, gender, variant, subpose = self._derive_pose_metadata(png_path, openpose_dir)
+            base_name = self._strip_pose_file_suffix(file_path.stem)
+            if not base_name:
+                continue
+
+            key = (str(file_path.parent.resolve()).lower(), base_name.lower())
+            grouped_files.setdefault(key, []).append(file_path)
+            group_names.setdefault(key, base_name)
+
+        pose_id = 1
+
+        for key in sorted(grouped_files.keys(), key=lambda value: (value[0], value[1])):
+            files = grouped_files[key]
+            base_name = group_names[key]
+            sample_path = sorted(files, key=lambda path: path.name.lower())[0]
+            pose, gender, variant, subpose = self._derive_pose_metadata(sample_path, openpose_dir, base_name)
             
             # Use filename as pose name if metadata extraction failed
             if pose == "unknown":
-                pose = self._normalize_token(Path(name).stem)
+                pose = self._normalize_token(base_name)
             
-            display_image, bone_structure, bone_structure_full = self._find_associated_images(png_path)
-            keypoints = self._extract_keypoints_from_png(png_path) or []
-            attributes = pose_attributes.get((pose, variant, subpose), [])
+            display_image, bone_structure, bone_structure_full = self._find_associated_images(base_name, files)
+            json_path = self._find_associated_json(base_name, files)
+            primary_path = display_image or bone_structure or bone_structure_full or json_path or sample_path
+            file_attributes = self._extract_attributes_from_json(json_path)
+            mapped_attributes = pose_attributes.get((pose, variant, subpose), [])
+            attributes = self._normalize_attributes(mapped_attributes + file_attributes)
             
             pose_data = {
                 "id": pose_id,
@@ -343,19 +465,60 @@ class PoseRegistry:
                 "variant": variant,
                 "subpose": subpose,
                 "attributes": attributes,
-                "keypoints": keypoints,
-                "png_path": str(png_path),
-                "display_image": str(display_image) if display_image else str(png_path),
+                "base_name": base_name,
+                "png_path": str(primary_path) if primary_path and primary_path.suffix.lower() == ".png" else "",
+                "json_path": str(json_path) if json_path else "",
+                "display_image": str(display_image) if display_image else "",
                 "bone_structure_path": str(bone_structure) if bone_structure else "",
                 "bone_structure_full_path": str(bone_structure_full) if bone_structure_full else "",
-                "source_file": png_path.name,
+                "source_file": base_name,
+                "files": [str(path) for path in sorted(files, key=lambda path: path.name.lower())],
             }
 
             self.poses.append(pose_data)
             self.poses_by_id[pose_id] = pose_data
             pose_id += 1
 
-        print(f"[PoseRegistry] Scanned {len(self.poses)} PNG files")
+        print(f"[PoseRegistry] Scanned {len(self.poses)} pose groups")
+
+    def _extract_keypoints_from_pose_file(self, json_path: Optional[Path], image_path: Optional[Path]) -> Optional[List[float]]:
+        if json_path is not None:
+            keypoints = self._extract_keypoints_from_json(json_path)
+            if keypoints:
+                return keypoints
+        if image_path is not None:
+            return self._extract_keypoints_from_png(image_path)
+        return None
+
+    def _extract_keypoints_from_json(self, json_path: Path) -> Optional[List[float]]:
+        """Extract keypoints from OpenPose JSON or a simple keypoints payload."""
+        try:
+            with open(json_path, "r", encoding="utf-8-sig") as f:
+                data = json.load(f)
+
+            if isinstance(data, dict):
+                if isinstance(data.get("keypoints"), list):
+                    return data["keypoints"]
+                people = data.get("people")
+                if isinstance(people, list) and people:
+                    person = people[0]
+                    if isinstance(person, dict):
+                        for key in ("pose_keypoints_2d", "keypoints"):
+                            value = person.get(key)
+                            if isinstance(value, list):
+                                return value
+                if isinstance(data.get("pose_keypoints_2d"), list):
+                    return data["pose_keypoints_2d"]
+
+            if isinstance(data, list):
+                if data and isinstance(data[0], dict) and isinstance(data[0].get("keypoints"), list):
+                    return data[0]["keypoints"]
+                if all(isinstance(value, (int, float)) for value in data):
+                    return data
+        except Exception as e:
+            print(f"[PoseRegistry] Error extracting keypoints from {json_path}: {e}")
+
+        return None
 
     def _extract_keypoints_from_png(self, png_path: Path) -> Optional[List[float]]:
         """Extract keypoints from PNG file EXIF or info."""
@@ -505,10 +668,18 @@ class PoseRegistry:
                                         png_path = alternate_path
 
                                 if png_path.exists():
-                                    keypoints = self._extract_keypoints_from_png(png_path) or []
-                                    display_image, bone_structure, bone_structure_full = self._find_associated_images(png_path)
+                                    base_name = self._strip_pose_file_suffix(png_path.stem)
+                                    sibling_files = [
+                                        path for path in png_path.parent.iterdir()
+                                        if path.is_file() and path.suffix.lower() in {".png", ".json"}
+                                           and self._strip_pose_file_suffix(path.stem).lower() == base_name.lower()
+                                    ]
+                                    display_image, bone_structure, bone_structure_full = self._find_associated_images(base_name, sibling_files)
+                                    json_path = self._find_associated_json(base_name, sibling_files)
                                     attr_key = (pose_name, variant_name, subpose_name)
-                                    attributes = pose_attributes.get(attr_key, [])
+                                    file_attributes = self._extract_attributes_from_json(json_path)
+                                    mapped_attributes = pose_attributes.get(attr_key, [])
+                                    attributes = self._normalize_attributes(mapped_attributes + file_attributes)
 
                                     pose_data = {
                                         "id": pose_id,
@@ -517,12 +688,14 @@ class PoseRegistry:
                                         "variant": variant_name,
                                         "subpose": subpose_name,
                                         "attributes": attributes,
-                                        "keypoints": keypoints,
-                                        "png_path": str(png_path),
+                                        "base_name": base_name,
+                                        "png_path": str(display_image or png_path),
+                                        "json_path": str(json_path) if json_path else "",
                                         "display_image": str(display_image) if display_image else str(png_path),
                                         "bone_structure_path": str(bone_structure) if bone_structure else "",
                                         "bone_structure_full_path": str(bone_structure_full) if bone_structure_full else "",
-                                        "source_file": png_path.name,
+                                        "source_file": base_name,
+                                        "files": [str(path) for path in sorted(sibling_files, key=lambda path: path.name.lower())],
                                     }
 
                                     self.poses.append(pose_data)
@@ -555,7 +728,57 @@ class PoseRegistry:
     def get_keypoints_by_id(self, pose_id: int) -> Optional[List[float]]:
         """Get keypoints for a pose ID."""
         pose = self.get_pose_by_id(pose_id)
-        return pose["keypoints"] if pose else None
+        if not pose:
+            return None
+
+        keypoints = pose.get("keypoints")
+        if keypoints:
+            return keypoints
+
+        json_path = pose.get("json_path") or ""
+        image_path = (
+            pose.get("display_image")
+            or pose.get("bone_structure_path")
+            or pose.get("bone_structure_full_path")
+            or pose.get("png_path")
+            or ""
+        )
+
+        keypoints = self._extract_keypoints_from_pose_file(
+            Path(json_path) if json_path else None,
+            Path(image_path) if image_path else None,
+        ) or []
+        pose["keypoints"] = keypoints
+        return keypoints if keypoints else None
+
+    def get_pose_json_text_by_id(self, pose_id: int) -> Optional[str]:
+        """Get copyable JSON for a pose ID, preferring the source OpenPose JSON."""
+        pose = self.get_pose_by_id(pose_id)
+        if not pose:
+            return None
+
+        json_path = pose.get("json_path") or ""
+        if json_path:
+            path = Path(json_path)
+            if path.exists():
+                try:
+                    return path.read_text(encoding="utf-8-sig")
+                except Exception as e:
+                    print(f"[PoseRegistry] Error reading pose JSON from {path}: {e}")
+
+        keypoints = self.get_keypoints_by_id(pose_id)
+        if not keypoints:
+            return None
+
+        payload = {
+            "pose": pose.get("pose"),
+            "gender": pose.get("gender"),
+            "variant": pose.get("variant"),
+            "subpose": pose.get("subpose"),
+            "source_file": pose.get("source_file"),
+            "keypoints": keypoints,
+        }
+        return json.dumps(payload, indent=2, ensure_ascii=False)
     
     def search(self, pose: Optional[str] = None, variant: Optional[str] = None, 
                subpose: Optional[str] = None) -> List[int]:
@@ -633,8 +856,10 @@ class PoseRegistry:
                 "gender": p.get("gender"),
                 "variant": p["variant"],
                 "subpose": p["subpose"],
+                "base_name": p.get("base_name"),
                 "attributes": p.get("attributes", []),
                 "source_file": p.get("source_file") or Path(p.get("png_path", "")).name,
+                "has_preview": bool(p.get("display_image") or p.get("bone_structure_path") or p.get("bone_structure_full_path")),
             }
             for p in self.poses
         ]

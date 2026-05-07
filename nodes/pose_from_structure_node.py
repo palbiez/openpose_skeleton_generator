@@ -1,141 +1,173 @@
 import json
 import random
-from .pose_similarity_matcher import PoseMatcher
+from typing import Any, Dict, List, Tuple
+
+try:
+    from ..core.openpose_io import make_pose_payload, normalize_attributes, normalize_token
+    from ..core.pose_registry import get_registry
+    from .pose_selector_node import _next_seed, _pose_to_person
+except ImportError:
+    from core.openpose_io import make_pose_payload, normalize_attributes, normalize_token
+    from core.pose_registry import get_registry
+    from nodes.pose_selector_node import _next_seed, _pose_to_person
+
+
+def _parse_structure(structure_json: str) -> List[Dict[str, Any]]:
+    data = json.loads(structure_json)
+    if isinstance(data, dict) and isinstance(data.get("people"), list):
+        return data["people"]
+    if isinstance(data, list):
+        return data
+    raise ValueError("Expected a JSON object with people[] or a list of person specs.")
+
 
 class PoseFromStructureNode:
+    """Convert normalized scene/person structure into real DB poses."""
+
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "structure_json": ("STRING", {}),
+                "structure_json": ("STRING", {"multiline": True, "default": ""}),
                 "num_people": ("INT", {"default": 1, "min": 1, "max": 10}),
+                "match_strictness": (["balanced", "strict", "loose"], {"default": "balanced"}),
                 "seed_control": (["randomize", "fixed", "incremental"], {"default": "randomize"}),
-                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff})
+                "seed": ("INT", {"default": 0, "min": 0, "max": 0xFFFFFFFFFFFFFFFF}),
             }
         }
 
-    RETURN_TYPES = ("STRING",)
+    RETURN_TYPES = ("STRING", "STRING")
+    RETURN_NAMES = ("pose_json", "match_report_json")
     FUNCTION = "convert"
     CATEGORY = "pose"
 
     def __init__(self):
-        self.matcher = PoseMatcher()
+        self.registry = get_registry()
         self.last_seed = 0
 
     @staticmethod
-    def normalize_token(value):
-        if value is None:
-            return ""
-        if not isinstance(value, str):
-            value = str(value)
-        return value.strip().lower().replace(" ", "_").replace("-", "_")
+    def _candidate_score(item: Dict[str, Any], spec: Dict[str, Any], strictness: str) -> int:
+        requested_pose = normalize_token(spec.get("pose"))
+        requested_variant = normalize_token(spec.get("variant"))
+        requested_subpose = normalize_token(spec.get("subpose"))
+        requested_gender = normalize_token(spec.get("gender"))
+        requested_attributes = normalize_attributes(spec.get("attributes"))
+        negative_attributes = set(normalize_attributes(spec.get("negative_attributes")))
+        item_attributes = set(normalize_attributes(item.get("attributes", [])))
 
-    @staticmethod
-    def normalize_attributes(attributes):
-        if attributes is None:
-            return []
-        if isinstance(attributes, str):
-            return [attr.strip().lower().replace(" ", "_").replace("-", "_") for attr in attributes.split(",") if attr.strip()]
-        if isinstance(attributes, list):
-            return [str(attr).strip().lower().replace(" ", "_").replace("-", "_") for attr in attributes if str(attr).strip()]
-        return [str(attributes).strip().lower().replace(" ", "_").replace("-", "_")]
+        item_pose = normalize_token(item.get("pose"))
+        item_variant = normalize_token(item.get("variant"))
+        item_subpose = normalize_token(item.get("subpose"))
+        item_gender = normalize_token(item.get("gender"))
 
-    def find_candidates(self, pose, subpose, variant, attributes):
-        exact = []
-        pose_variant = []
-        pose_subpose = []
-        pose_only = []
+        score = 0
 
-        for item in self.matcher.meta:
-            if item["pose"] != pose:
-                continue
+        if requested_pose:
+            if item_pose != requested_pose:
+                return -1 if strictness != "loose" else 0
+            score += 100
+        if requested_variant:
+            if item_variant == requested_variant:
+                score += 30
+            elif strictness == "strict":
+                return -1
+        if requested_subpose:
+            if item_subpose == requested_subpose:
+                score += 45
+            elif strictness == "strict":
+                return -1
+        if requested_gender and requested_gender not in {"unknown", "any"}:
+            if item_gender == requested_gender:
+                score += 15
+            elif strictness == "strict":
+                return -1
 
-            item_attributes = [str(attr).strip().lower().replace(" ", "_").replace("-", "_") for attr in item.get("attributes", [])]
-            variant_match = not variant or item["variant"] == variant
-            subpose_match = not subpose or item["subpose"] == subpose
-            attributes_match = all(attr in item_attributes for attr in attributes)
+        matched_attributes = set(requested_attributes) & item_attributes
+        missing_attributes = set(requested_attributes) - item_attributes
+        forbidden_attributes = negative_attributes & item_attributes
 
-            if variant_match and subpose_match and attributes_match:
-                exact.append(item)
-            if variant_match and item["subpose"] == subpose and attributes_match:
-                pose_subpose.append(item)
-            if subpose_match and item["variant"] == variant and attributes_match:
-                pose_variant.append(item)
-            pose_only.append(item)
+        score += len(matched_attributes) * 18
+        score -= len(missing_attributes) * (14 if strictness == "balanced" else 7)
+        score -= len(forbidden_attributes) * 30
 
-        if variant and subpose:
-            return exact
-        if variant:
-            return exact or pose_variant
-        if subpose:
-            return exact or pose_subpose
-        return exact or pose_only
+        if strictness == "strict" and missing_attributes:
+            return -1
+        return score
 
+    def _find_match(self, spec: Dict[str, Any], strictness: str) -> Tuple[Dict[str, Any], List[Tuple[int, Dict[str, Any]]]]:
+        pose_id = spec.get("id") or spec.get("pose_id")
+        if pose_id:
+            try:
+                item = self.registry.get_pose_by_id(int(pose_id))
+            except Exception:
+                item = None
+            return item, [(1000, item)] if item else []
 
-    @staticmethod
-    def parse_structure(structure_json):
-        data = json.loads(structure_json)
-        if isinstance(data, dict) and "people" in data:
-            return data["people"]
-        if isinstance(data, list):
-            return data
-        raise ValueError("Input must be a JSON object with a 'people' list or a list of person specs.")
+        scored = []
+        for item in self.registry.poses:
+            score = self._candidate_score(item, spec, strictness)
+            if score >= 0:
+                scored.append((score, item))
 
-    def convert(self, structure_json, num_people, seed_control, seed):
-        # Handle seed control like KSampler
-        if seed_control == "randomize":
-            final_seed = random.randint(0, 0xffffffffffffffff)
-        elif seed_control == "fixed":
-            final_seed = seed
-        elif seed_control == "incremental":
-            final_seed = self.last_seed + 1
-        else:
-            final_seed = random.randint(0, 0xffffffffffffffff)
-        
-        self.last_seed = final_seed
+        if not scored:
+            return None, []
+
+        scored.sort(key=lambda pair: pair[0], reverse=True)
+        top_score = scored[0][0]
+        best_pool = [item for score, item in scored if score == top_score]
+        return random.choice(best_pool), scored
+
+    def convert(self, structure_json, num_people, match_strictness, seed_control, seed):
+        final_seed = _next_seed(self, seed_control, seed)
         random.seed(final_seed)
 
         try:
-            people_specs = self.parse_structure(structure_json)
+            specs = _parse_structure(structure_json)
         except Exception as exc:
-            print(f"[PoseFromStructure] Invalid structure JSON: {exc}")
-            return ("[]",)
+            report = {"error": f"Invalid structure JSON: {exc}"}
+            return ("", json.dumps(report, indent=2, ensure_ascii=False))
 
-        if not isinstance(people_specs, list):
-            print("[PoseFromStructure] 'people' should be a list of person specs")
-            return ("[]",)
-
-        result = []
-        for spec in people_specs[:num_people]:
+        selected_people = []
+        matches = []
+        for index, spec in enumerate(specs[:num_people]):
             if not isinstance(spec, dict):
-                print(f"[PoseFromStructure] Skipping invalid person spec: {spec}")
+                matches.append({"index": index, "error": "Person spec is not an object"})
                 continue
 
-            pose = self.normalize_token(spec.get("pose", ""))
-            subpose = self.normalize_token(spec.get("subpose", ""))
-            variant = self.normalize_token(spec.get("variant", ""))
-            attributes = self.normalize_attributes(spec.get("attributes", []))
-
-            if not pose:
-                print("[PoseFromStructure] Skipping person spec without 'pose'")
+            selected, scored = self._find_match(spec, match_strictness)
+            if not selected:
+                matches.append({"index": index, "error": "No matching pose", "request": spec})
                 continue
 
-            candidates = self.find_candidates(pose, subpose, variant, attributes)
-            if not candidates:
-                print(f"[PoseFromStructure] No match found for pose='{pose}', subpose='{subpose}', variant='{variant}', attributes={attributes}")
-                continue
+            person = _pose_to_person(self.registry, selected)
+            if spec.get("role"):
+                person["role"] = spec.get("role")
+            if spec.get("position"):
+                person["position"] = spec.get("position")
+            selected_people.append(person)
+            matches.append(
+                {
+                    "index": index,
+                    "selected_id": selected.get("id"),
+                    "selected_pose": {
+                        "pose": selected.get("pose"),
+                        "variant": selected.get("variant"),
+                        "subpose": selected.get("subpose"),
+                        "attributes": selected.get("attributes", []),
+                    },
+                    "candidate_count": len(scored),
+                    "top_score": scored[0][0] if scored else None,
+                    "request": spec,
+                }
+            )
 
-            selected = random.choice(candidates)
-            result.append({
-                "score": 0.0,
-                "pose": selected["pose"],
-                "variant": selected["variant"],
-                "subpose": selected["subpose"],
-                "attributes": selected.get("attributes", []),
-                "keypoints": selected["keypoints"]
-            })
-
-        if not result:
-            return ("[]",)
-
-        return (json.dumps(result),)
+        payload = make_pose_payload(selected_people, seed=final_seed)
+        report = {
+            "schema": "pal_pose_match_report/v1",
+            "seed": final_seed,
+            "strictness": match_strictness,
+            "requested_people": min(len(specs), num_people),
+            "matched_people": len(selected_people),
+            "matches": matches,
+        }
+        return (json.dumps(payload, ensure_ascii=False), json.dumps(report, indent=2, ensure_ascii=False))

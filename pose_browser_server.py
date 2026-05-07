@@ -3,7 +3,10 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pathlib import Path
-from pose_registry import get_registry, debug_log
+try:
+    from .core.pose_registry import get_registry, debug_log
+except ImportError:
+    from core.pose_registry import get_registry, debug_log
 import json
 import math
 import uvicorn
@@ -15,6 +18,20 @@ debug_log(f"[DEBUG] pose_browser_server: Registry loaded with {len(registry.pose
 debug_log(f"[DEBUG] pose_browser_server: First pose sample: {registry.poses[0] if registry.poses else 'No poses'}")
 
 static_dir = Path(__file__).parent / "web" / "pose_browser"
+
+
+def _resolve_image_path(pose_data: dict, image_kind: str = "preview") -> str:
+    if image_kind in {"bone", "bone_structure"}:
+        return pose_data.get("bone_structure_path") or pose_data.get("bone_structure_full_path") or ""
+    if image_kind == "bone_structure_full":
+        return pose_data.get("bone_structure_full_path") or pose_data.get("bone_structure_path") or ""
+    return (
+        pose_data.get("display_image")
+        or pose_data.get("bone_structure_path")
+        or pose_data.get("bone_structure_full_path")
+        or pose_data.get("png_path")
+        or ""
+    )
 
 
 @app.get("/api/poses")
@@ -67,10 +84,14 @@ def filter_poses(
 
         if normalized_search:
             search_text = " ".join(
-                [str(pose_data.get(k, "")).lower() for k in ["pose", "variant", "subpose"]]
+                [str(pose_data.get(k, "")).lower() for k in ["pose", "gender", "variant", "subpose", "base_name", "source_file"]]
+                + [str(attr).lower() for attr in pose_data.get("attributes", [])]
             )
             if normalized_search not in str(pose_id).lower() and normalized_search not in search_text:
                 continue
+
+        image_path = _resolve_image_path(pose_data, "preview")
+        bone_image_path = _resolve_image_path(pose_data, "bone_structure")
 
         pose_copy = {
             "id": pose_data["id"],
@@ -78,11 +99,16 @@ def filter_poses(
             "gender": pose_data.get("gender"),
             "variant": pose_data.get("variant"),
             "subpose": pose_data.get("subpose"),
+            "base_name": pose_data.get("base_name"),
             "attributes": pose_data.get("attributes", []),
             "source_file": pose_data.get("source_file"),
-            "image_url": f"/api/images/{pose_id}",
+            "image_url": f"/api/images/{pose_id}" if image_path else None,
+            "hover_image_url": f"/api/images/{pose_id}/bone_structure" if bone_image_path else None,
+            "copy_json_url": f"/api/pose/{pose_id}/copy" if pose_data.get("json_path") else None,
+            "has_preview": bool(image_path),
             "has_bone_structure": bool(pose_data.get("bone_structure_path")),
             "has_bone_structure_full": bool(pose_data.get("bone_structure_full_path")),
+            "has_json": bool(pose_data.get("json_path")),
         }
         poses.append(pose_copy)
 
@@ -136,18 +162,38 @@ def get_pose_files(pose_id: int):
         "display_image": pose_data.get("display_image"),
         "bone_structure": pose_data.get("bone_structure_path"),
         "bone_structure_full": pose_data.get("bone_structure_full_path"),
+        "json_path": pose_data.get("json_path"),
         "source_file": pose_data.get("source_file"),
         "attributes": pose_data.get("attributes", [])
     }
 
 
+@app.get("/api/pose/{pose_id}/copy")
+def get_pose_copy_json(pose_id: int):
+    text = registry.get_pose_json_text_by_id(pose_id)
+    if text is None:
+        raise HTTPException(status_code=404, detail="Pose JSON not found")
+
+    pose_data = registry.get_pose_by_id(pose_id) or {}
+    return {
+        "id": pose_id,
+        "source": pose_data.get("json_path") or "generated_keypoints",
+        "text": text,
+    }
+
+
 @app.get("/api/images/{pose_id}")
 def get_pose_image(pose_id: int):
+    return get_pose_image_by_kind(pose_id, "preview")
+
+
+@app.get("/api/images/{pose_id}/{image_kind}")
+def get_pose_image_by_kind(pose_id: int, image_kind: str):
     pose_data = registry.get_pose_by_id(pose_id)
     if not pose_data:
         raise HTTPException(status_code=404, detail="Pose not found")
 
-    image_path = pose_data.get("display_image") or pose_data.get("png_path")
+    image_path = _resolve_image_path(pose_data, image_kind)
     if not image_path:
         raise HTTPException(status_code=404, detail="Image not found")
 

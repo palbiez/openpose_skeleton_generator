@@ -1,10 +1,17 @@
 import json
 import random
-from .pose_similarity_matcher import PoseMatcher
-from .pose_similarity_matcher import map_pose_combination
+from typing import Dict, List
 
-# Cache for options
+try:
+    from ..core.openpose_io import make_pose_payload, normalize_attributes, normalize_token
+    from ..core.pose_registry import get_registry
+except ImportError:
+    from core.openpose_io import make_pose_payload, normalize_attributes, normalize_token
+    from core.pose_registry import get_registry
+
+
 _cached_options = None
+
 
 def get_pose_options():
     global _cached_options
@@ -12,105 +19,167 @@ def get_pose_options():
         return _cached_options
 
     try:
-        matcher = PoseMatcher()
-        poses = set()
-        variants = set()
-        subposes = set()
-
-        for item in matcher.meta:
-            poses.add(item["pose"])
-            variants.add(item["variant"])
-            subposes.add(item["subpose"])
-
+        registry = get_registry()
+        poses = {item.get("pose", "unknown") for item in registry.poses}
+        variants = {item.get("variant", "base") for item in registry.poses}
+        subposes = {item.get("subpose", "default") for item in registry.poses}
+        attributes = {
+            attribute
+            for item in registry.poses
+            for attribute in item.get("attributes", [])
+            if attribute
+        }
         _cached_options = {
-            "poses": sorted(list(poses)),
-            "variants": sorted(list(variants)),
-            "subposes": sorted(list(subposes))
+            "poses": sorted(poses) or ["standing"],
+            "variants": sorted(variants) or ["base"],
+            "subposes": sorted(subposes) or ["default"],
+            "attributes": sorted(attributes),
         }
     except Exception:
         _cached_options = {
             "poses": ["standing", "sitting", "kneeling", "lying"],
             "variants": ["base", "nsfw"],
-            "subposes": ["neutral", "one_knee", "crossed_arms"]
+            "subposes": ["neutral", "default"],
+            "attributes": [],
         }
 
     return _cached_options
 
+
+def _next_seed(node, seed_control, seed):
+    if seed_control == "fixed":
+        final_seed = int(seed)
+    elif seed_control == "incremental":
+        final_seed = node.last_seed + 1
+    else:
+        final_seed = random.randint(0, 0xFFFFFFFFFFFFFFFF)
+    node.last_seed = final_seed
+    return final_seed
+
+
+def _pose_to_person(registry, item: Dict) -> Dict:
+    return {
+        "id": item.get("id"),
+        "pose": item.get("pose"),
+        "gender": item.get("gender"),
+        "variant": item.get("variant"),
+        "subpose": item.get("subpose"),
+        "attributes": item.get("attributes", []),
+        "source_file": item.get("source_file"),
+        "json_path": item.get("json_path"),
+        "score": 0.0,
+        "keypoints": registry.get_keypoints_by_id(item["id"]) or [],
+    }
+
+
 class PoseSelectorNode:
+    """Select a real pose by ID, category filters, and optional attributes."""
+
     @classmethod
     def INPUT_TYPES(cls):
         options = get_pose_options()
         return {
             "required": {
-                "pose": (options["poses"], {"default": "standing"}),
-                "variant": (options["variants"], {"default": "base"}),
-                "subpose": (options["subposes"], {"default": "neutral"}),
+                "selection_mode": (["filters", "pose_id"], {"default": "filters"}),
+                "pose_id": ("INT", {"default": 0, "min": 0}),
+                "pose": (options["poses"], {"default": options["poses"][0]}),
+                "variant": (options["variants"], {"default": options["variants"][0]}),
+                "subpose": (options["subposes"], {"default": options["subposes"][0]}),
+                "attribute_query": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "multiline": False,
+                        "placeholder": "Comma-separated attributes, e.g. legs_open, hand_up",
+                    },
+                ),
+                "attribute_mode": (["prefer", "require_all", "ignore"], {"default": "prefer"}),
                 "seed_control": (["randomize", "fixed", "incremental"], {"default": "randomize"}),
-                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff})
+                "seed": ("INT", {"default": 0, "min": 0, "max": 0xFFFFFFFFFFFFFFFF}),
             }
         }
 
-    RETURN_TYPES = ("STRING",)
+    RETURN_TYPES = ("STRING", "STRING")
+    RETURN_NAMES = ("pose_json", "metadata_json")
     FUNCTION = "select"
     CATEGORY = "pose"
 
     def __init__(self):
-        self.matcher = PoseMatcher()
+        self.registry = get_registry()
         self.last_seed = 0
 
-    def select(self, pose, variant, subpose, seed_control, seed):
-        # Handle seed control like KSampler
-        if seed_control == "randomize":
-            final_seed = random.randint(0, 0xffffffffffffffff)
-        elif seed_control == "fixed":
-            final_seed = seed
-        elif seed_control == "incremental":
-            final_seed = self.last_seed + 1
-        else:
-            final_seed = random.randint(0, 0xffffffffffffffff)
-        
-        self.last_seed = final_seed
-        random.seed(final_seed)
+    def _score_candidate(self, item, attributes: List[str], attribute_mode: str) -> int:
+        item_attributes = set(normalize_attributes(item.get("attributes", [])))
+        if attribute_mode == "require_all" and not set(attributes).issubset(item_attributes):
+            return -1
 
-        # Apply pose mapping for invalid combinations
-        mapped_pose, mapped_subpose = map_pose_combination(pose, subpose)
-        if mapped_pose != pose or mapped_subpose != subpose:
-            pose, subpose = mapped_pose, mapped_subpose
+        score = 0
+        if attributes and attribute_mode != "ignore":
+            score += len(set(attributes) & item_attributes) * 10
+        return score
 
-        exact = []
-        pose_variant = []
-        pose_only = []
+    def _select_by_filters(self, pose, variant, subpose, attributes, attribute_mode):
+        pose = normalize_token(pose)
+        variant = normalize_token(variant)
+        subpose = normalize_token(subpose)
 
-        for item in self.matcher.meta:
-            if item["pose"] != pose:
+        candidates = []
+        for item in self.registry.poses:
+            if normalize_token(item.get("pose")) != pose:
+                continue
+            if variant and normalize_token(item.get("variant")) != variant:
+                continue
+            if subpose and normalize_token(item.get("subpose")) != subpose:
                 continue
 
-            if item["variant"] == variant and item["subpose"] == subpose:
-                exact.append(item)
-            if item["variant"] == variant:
-                pose_variant.append(item)
-            pose_only.append(item)
+            score = self._score_candidate(item, attributes, attribute_mode)
+            if score >= 0:
+                candidates.append((score, item))
 
-        if exact:
-            candidates = exact
-        else:
-            print(f"[PoseSelector] No exact match for {pose}/{variant}/{subpose}")
-            candidates = []
+        if not candidates and attributes and attribute_mode == "prefer":
+            return self._select_by_filters(pose, variant, subpose, [], "ignore")
 
         if not candidates:
-            print(f"[PoseSelector] The selected pose/subpose combination is not available. Please choose a supported subpose for '{pose}'.")
-            return ("[]",)
+            return None, []
 
-        # Select only one person
-        selected = random.choice(candidates)
+        best_score = max(score for score, _ in candidates)
+        best = [item for score, item in candidates if score == best_score]
+        return random.choice(best), best
 
-        result = {
-            "score": 0.0,
-            "pose": selected["pose"],
-            "variant": selected["variant"],
-            "subpose": selected["subpose"],
-            "attributes": selected.get("attributes", []),
-            "keypoints": selected["keypoints"]
+    def select(self, selection_mode, pose_id, pose, variant, subpose, attribute_query, attribute_mode, seed_control, seed):
+        final_seed = _next_seed(self, seed_control, seed)
+        random.seed(final_seed)
+        attributes = normalize_attributes(attribute_query)
+
+        selected = None
+        candidates = []
+        if selection_mode == "pose_id" and int(pose_id) > 0:
+            selected = self.registry.get_pose_by_id(int(pose_id))
+            candidates = [selected] if selected else []
+        else:
+            selected, candidates = self._select_by_filters(pose, variant, subpose, attributes, attribute_mode)
+
+        if not selected:
+            report = {
+                "error": "No matching pose found",
+                "selection_mode": selection_mode,
+                "pose_id": pose_id,
+                "pose": pose,
+                "variant": variant,
+                "subpose": subpose,
+                "attributes": attributes,
+            }
+            return ("", json.dumps(report, indent=2, ensure_ascii=False))
+
+        person = _pose_to_person(self.registry, selected)
+        payload = make_pose_payload([person], seed=final_seed)
+        report = {
+            "selected_id": selected.get("id"),
+            "candidate_count": len(candidates),
+            "seed": final_seed,
+            "selection_mode": selection_mode,
+            "requested_attributes": attributes,
+            "selected_attributes": selected.get("attributes", []),
         }
 
-        return (json.dumps(result),)
+        return (json.dumps(payload, ensure_ascii=False), json.dumps(report, indent=2, ensure_ascii=False))
