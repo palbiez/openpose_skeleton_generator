@@ -5,12 +5,14 @@ import numpy as np
 from collections import defaultdict
 
 # -------------------------
+BASE_DIR = Path(os.getenv("OPENPOSE2_DIR", Path.home() / "ComfyUI" / "input" / "openpose2"))
+
 # PATHS
 # -------------------------
-NSFW_ROOT = Path(r"C:\Users\firew\Documents\ComfyUI\input\openpose2\openpose")
-COCO_FILE = Path(r"C:\Users\firew\Documents\ComfyUI\input\openpose2\person_keypoints_train2017.json")
-STRUCTURE_FILE = Path(r"C:\Users\firew\Documents\ComfyUI\input\openpose2\structure.json")
-OUTPUT_DIR = Path(r"C:\Users\firew\Documents\ComfyUI\input\openpose2\split")
+NSFW_ROOT = BASE_DIR / "openpose"
+COCO_FILE = BASE_DIR / "person_keypoints_train2017.json"
+STRUCTURE_FILE = BASE_DIR / "structure.json"
+OUTPUT_DIR = BASE_DIR / "split"
 
 OUTPUT_DIR.mkdir(exist_ok=True)
 
@@ -165,7 +167,7 @@ for json_file in NSFW_ROOT.rglob("*.json"):
     file_path = OUTPUT_DIR / f"{pose}_{variant}.json"
     append_to_file(file_path, item)
 
-print("NSFW fertig\n")
+print("NSFW done\n")
 
 # -------------------------
 # 2. COCO
@@ -184,7 +186,7 @@ for i, ann in enumerate(coco["annotations"]):
     kp = ann["keypoints"]
     norm = normalize_kp(kp)
 
-    # dedup
+    # Deduplicate.
     duplicate = False
     for prev in seen_vectors:
         if np.linalg.norm(norm - prev) < SIMILARITY_THRESHOLD:
@@ -211,11 +213,11 @@ for i, ann in enumerate(coco["annotations"]):
 
     buffers[(pose, "base")].append(item)
 
-    # Batch flush
+    # Batch flush.
     if len(buffers[(pose, "base")]) >= BATCH_SIZE:
         flush_buffer(pose, "base")
 
-    # Progress
+    # Progress.
     if i % 10000 == 0:
         print(f"{i} processed...")
 
@@ -224,4 +226,4 @@ for (pose, variant) in list(buffers.keys()):
     if buffers[(pose, variant)]:
         flush_buffer(pose, variant)
 
-print("\n=== FERTIG ===")
+print("\n=== DONE ===")

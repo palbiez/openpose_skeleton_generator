@@ -56,7 +56,7 @@ CLI scripts are maintenance tools for rebuilding the cache, enriching attributes
 
 ### web
 
-The pose browser is a local FastAPI + static HTML UI. It uses the registry API, shows depth previews by default, and switches to bone structure previews on hover.
+The pose browser is a local HTML UI backed by the registry API. Inside ComfyUI it is exposed at `/poses`; the standalone FastAPI server on port `8189` remains available as a fallback. The UI shows depth previews by default and switches to bone structure previews on hover.
 
 ## Data Contract
 
@@ -92,4 +92,3 @@ The registry cache stores metadata and source file paths only. It does not persi
 - Keep nodes focused on stable input/output contracts.
 - Prefer attribute-weighted matching over synthetic pose generation.
 - Preserve compatibility wrappers while the project is still evolving.
-

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -217,47 +217,52 @@
     <div class="page">
         <header>
             <h1>PAL OpenPose Browser</h1>
-            <p>Durchsuche deine OpenPose-DB, filtere nach Pose / Variant / Subpose und kopiere die gewünschte Pose als JSON.</p>
+            <p>Browse the local OpenPose database, filter by pose metadata, and copy the selected source pose as JSON.</p>
         </header>
 
         <div class="filters">
             <div class="filter-card">
                 <label for="pose-select">Pose</label>
-                <select id="pose-select"><option value="">Alle</option></select>
+                <select id="pose-select"><option value="">All</option></select>
+            </div>
+            <div class="filter-card">
+                <label for="gender-select">Gender</label>
+                <select id="gender-select" disabled><option value="">All</option></select>
             </div>
             <div class="filter-card">
                 <label for="variant-select">Variant</label>
-                <select id="variant-select" disabled><option value="">Alle</option></select>
+                <select id="variant-select" disabled><option value="">All</option></select>
             </div>
             <div class="filter-card">
                 <label for="subpose-select">Subpose</label>
-                <select id="subpose-select" disabled><option value="">Alle</option></select>
+                <select id="subpose-select" disabled><option value="">All</option></select>
             </div>
             <div class="filter-card">
-                <label for="search-input">Suche</label>
+                <label for="search-input">Search</label>
                 <input id="search-input" type="text" placeholder="ID, Pose, Variant, Subpose...">
             </div>
         </div>
 
         <div class="controls">
-            <button class="btn-primary" type="button" onclick="applyFilters(1)">Filter anwenden</button>
-            <button class="btn-secondary" type="button" onclick="resetFilters()">Zurücksetzen</button>
+            <button class="btn-primary" type="button" onclick="applyFilters(1)">Apply Filters</button>
+            <button class="btn-secondary" type="button" onclick="resetFilters()">Reset</button>
         </div>
 
         <div class="stats">
-            <div><strong id="pose-count">0</strong> Posen gefunden</div>
-            <div id="summary-text">Pose-JSON aus der Quelldatei kopieren.</div>
+            <div><strong id="pose-count">0</strong> poses found</div>
+            <div id="summary-text">Copy pose JSON from the source file.</div>
         </div>
 
         <div id="error-container"></div>
-        <div id="loading" class="loading" style="display:none;">Lade Posen...</div>
+        <div id="loading" class="loading" style="display:none;">Loading poses...</div>
         <div id="gallery" class="gallery"></div>
         <div id="pagination" class="pagination" style="display:none;"></div>
-        <div id="empty" class="empty" style="display:none;">Keine Posen gefunden. Passe die Filter an.</div>
+        <div id="empty" class="empty" style="display:none;">No poses found. Adjust the filters.</div>
     </div>
 
     <script>
         const poseSelect = document.getElementById('pose-select');
+        const genderSelect = document.getElementById('gender-select');
         const variantSelect = document.getElementById('variant-select');
         const subposeSelect = document.getElementById('subpose-select');
         const searchInput = document.getElementById('search-input');
@@ -272,8 +277,21 @@
         let totalPages = 0;
         let totalCount = 0;
         let currentResults = [];
+        const API_BASE = window.location.pathname.startsWith('/poses') ? '/poses/api' : '/api';
 
         const fallbackImage = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAQAAADK4KPXAAAAF0lEQVR42u3BAQ0AAADCoPdPbQ43oAAAAAAAAAAA4G3rBAABvG6NSAAAAAElFTkSuQmCC';
+
+        function apiUrl(path) {
+            return `${API_BASE}${path}`;
+        }
+
+        function resourceUrl(url) {
+            if (!url) return '';
+            if (API_BASE !== '/api' && url.startsWith('/api/')) {
+                return `${API_BASE}${url.slice(4)}`;
+            }
+            return url;
+        }
 
         function escapeHtml(value) {
             return String(value ?? '').replace(/[&<>"']/g, char => ({
@@ -305,11 +323,13 @@
         async function loadFilterOptions() {
             showLoading(true);
             try {
-                const response = await fetch('/api/options');
+                const response = await fetch(apiUrl('/options'));
                 const data = await response.json();
-                populateSelect(poseSelect, data.poses, 'Alle');
+                populateSelect(poseSelect, data.poses, 'All');
+                populateSelect(genderSelect, data.genders, 'All');
+                genderSelect.disabled = !(data.genders?.length);
             } catch (err) {
-                showError('Filteroptionen konnten nicht geladen werden.');
+                showError('Filter options could not be loaded.');
             } finally {
                 showLoading(false);
             }
@@ -327,20 +347,44 @@
 
         poseSelect.addEventListener('change', async () => {
             const pose = poseSelect.value;
-            variantSelect.innerHTML = '<option value="">Alle</option>';
-            subposeSelect.innerHTML = '<option value="">Alle</option>';
+            genderSelect.innerHTML = '<option value="">All</option>';
+            variantSelect.innerHTML = '<option value="">All</option>';
+            subposeSelect.innerHTML = '<option value="">All</option>';
+            genderSelect.disabled = true;
             variantSelect.disabled = true;
             subposeSelect.disabled = true;
 
             if (pose) {
                 try {
-                    const response = await fetch(`/api/options?pose=${encodeURIComponent(pose)}`);
+                    const response = await fetch(apiUrl(`/options?pose=${encodeURIComponent(pose)}`));
                     const data = await response.json();
-                    populateSelect(variantSelect, data.variants, 'Alle');
-                    variantSelect.disabled = false;
-                    if (data.subposes?.length) {
-                        subposeSelect.disabled = false;
-                    }
+                    populateSelect(genderSelect, data.genders, 'All');
+                    populateSelect(variantSelect, data.variants, 'All');
+                    genderSelect.disabled = !(data.genders?.length);
+                    variantSelect.disabled = !(data.variants?.length);
+                } catch (err) {
+                    console.error(err);
+                }
+            }
+            applyFilters(1);
+        });
+
+        genderSelect.addEventListener('change', async () => {
+            const pose = poseSelect.value;
+            const gender = genderSelect.value;
+            variantSelect.innerHTML = '<option value="">All</option>';
+            subposeSelect.innerHTML = '<option value="">All</option>';
+            variantSelect.disabled = true;
+            subposeSelect.disabled = true;
+
+            if (pose) {
+                try {
+                    const params = new URLSearchParams({ pose });
+                    if (gender) params.append('gender', gender);
+                    const response = await fetch(apiUrl(`/options?${params.toString()}`));
+                    const data = await response.json();
+                    populateSelect(variantSelect, data.variants, 'All');
+                    variantSelect.disabled = !(data.variants?.length);
                 } catch (err) {
                     console.error(err);
                 }
@@ -350,20 +394,27 @@
 
         variantSelect.addEventListener('change', async () => {
             const pose = poseSelect.value;
+            const gender = genderSelect.value;
             const variant = variantSelect.value;
-            subposeSelect.innerHTML = '<option value="">Alle</option>';
+            subposeSelect.innerHTML = '<option value="">All</option>';
             subposeSelect.disabled = true;
 
             if (pose && variant) {
                 try {
-                    const response = await fetch(`/api/options?pose=${encodeURIComponent(pose)}&variant=${encodeURIComponent(variant)}`);
+                    const params = new URLSearchParams({ pose, variant });
+                    if (gender) params.append('gender', gender);
+                    const response = await fetch(apiUrl(`/options?${params.toString()}`));
                     const data = await response.json();
-                    populateSelect(subposeSelect, data.subposes, 'Alle');
-                    subposeSelect.disabled = false;
+                    populateSelect(subposeSelect, data.subposes, 'All');
+                    subposeSelect.disabled = !(data.subposes?.length);
                 } catch (err) {
                     console.error(err);
                 }
             }
+            applyFilters(1);
+        });
+
+        subposeSelect.addEventListener('change', () => {
             applyFilters(1);
         });
 
@@ -379,13 +430,14 @@
             try {
                 const params = new URLSearchParams();
                 if (poseSelect.value) params.append('pose', poseSelect.value);
+                if (genderSelect.value) params.append('gender', genderSelect.value);
                 if (variantSelect.value) params.append('variant', variantSelect.value);
                 if (subposeSelect.value) params.append('subpose', subposeSelect.value);
                 if (searchInput.value.trim()) params.append('search', searchInput.value.trim());
                 params.append('page', page);
                 params.append('limit', pageSize);
 
-                const response = await fetch(`/api/filter?${params.toString()}`);
+                const response = await fetch(apiUrl(`/filter?${params.toString()}`));
                 const data = await response.json();
                 currentPage = data.page;
                 totalPages = data.total_pages || 0;
@@ -393,7 +445,7 @@
                 currentResults = data.poses || [];
                 renderResults();
             } catch (err) {
-                showError('Filter konnten nicht angewendet werden.');
+                showError('Filters could not be applied.');
             } finally {
                 showLoading(false);
             }
@@ -402,8 +454,8 @@
         function renderResults() {
             poseCount.textContent = `${totalCount}`;
             summaryText.textContent = totalPages > 1
-                ? `Seite ${currentPage} von ${totalPages} · ${currentResults.length} pro Seite sichtbar`
-                : 'Pose-JSON aus der Quelldatei kopieren.';
+                ? `Page ${currentPage} of ${totalPages} · ${currentResults.length} visible on this page`
+                : 'Copy pose JSON from the source file.';
 
             if (!currentResults.length) {
                 gallery.innerHTML = '';
@@ -417,12 +469,14 @@
             gallery.innerHTML = currentResults.map(pose => {
                 const attributes = Array.isArray(pose.attributes) ? pose.attributes : [];
                 const attributeTags = attributes.map(attr => `<span class="attribute">${escapeHtml(attr)}</span>`).join('');
+                const previewUrl = resourceUrl(pose.image_url);
+                const hoverUrl = resourceUrl(pose.hover_image_url || pose.image_url);
                 const imageMarkup = pose.image_url
-                    ? `<img src="${escapeHtml(pose.image_url)}" data-preview-src="${escapeHtml(pose.image_url)}" data-hover-src="${escapeHtml(pose.hover_image_url || pose.image_url)}" alt="Pose ${escapeHtml(pose.id)}" onmouseenter="swapPoseImage(this, true)" onmouseleave="swapPoseImage(this, false)" onerror="this.src='${fallbackImage}'">`
-                    : '<div class="no-preview">Kein Preview</div>';
+                    ? `<img src="${escapeHtml(previewUrl)}" data-preview-src="${escapeHtml(previewUrl)}" data-hover-src="${escapeHtml(hoverUrl)}" alt="Pose ${escapeHtml(pose.id)}" onmouseenter="swapPoseImage(this, true)" onmouseleave="swapPoseImage(this, false)" onerror="this.src='${fallbackImage}'">`
+                    : '<div class="no-preview">No Preview</div>';
                 const copyButton = pose.copy_json_url
-                    ? `<button class="btn-copy" type="button" onclick="copyPoseJson(${pose.id}, this)">JSON kopieren</button>`
-                    : '<button class="btn-copy" type="button" disabled>Kein JSON</button>';
+                    ? `<button class="btn-copy" type="button" onclick="copyPoseJson(${pose.id}, this)">Copy JSON</button>`
+                    : '<button class="btn-copy" type="button" disabled>No JSON</button>';
                 return `
                     <article class="card">
                         ${imageMarkup}
@@ -435,7 +489,7 @@
                                 <span><strong>Pose:</strong> ${escapeHtml(pose.pose)}</span>
                                 <span><strong>Gender:</strong> ${escapeHtml(pose.gender || 'unknown')}</span>
                                 <span><strong>Subpose:</strong> ${escapeHtml(pose.subpose)}</span>
-                                <span><strong>Datei:</strong> ${escapeHtml(pose.base_name || pose.source_file || 'unbekannt')}</span>
+                                <span><strong>File:</strong> ${escapeHtml(pose.base_name || pose.source_file || 'unknown')}</span>
                             </div>
                             ${attributeTags ? `<div class="attributes">${attributeTags}</div>` : ''}
                             <div class="actions">
@@ -464,9 +518,9 @@
 
             pagination.style.display = 'flex';
             pagination.innerHTML = `
-                <button class="btn-secondary" type="button" ${currentPage <= 1 ? 'disabled' : ''} onclick="applyFilters(${currentPage - 1})">Zurueck</button>
-                <span>Seite ${currentPage} / ${totalPages}</span>
-                <button class="btn-secondary" type="button" ${currentPage >= totalPages ? 'disabled' : ''} onclick="applyFilters(${currentPage + 1})">Weiter</button>
+                <button class="btn-secondary" type="button" ${currentPage <= 1 ? 'disabled' : ''} onclick="applyFilters(${currentPage - 1})">Previous</button>
+                <span>Page ${currentPage} / ${totalPages}</span>
+                <button class="btn-secondary" type="button" ${currentPage >= totalPages ? 'disabled' : ''} onclick="applyFilters(${currentPage + 1})">Next</button>
             `;
         }
 
@@ -474,14 +528,14 @@
             const originalText = button.textContent;
             button.disabled = true;
             try {
-                const response = await fetch(`/api/pose/${id}/copy`);
+                const response = await fetch(apiUrl(`/pose/${id}/copy`));
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}`);
                 }
                 const data = await response.json();
                 await writeClipboard(data.text || '');
                 button.classList.add('copied');
-                button.textContent = 'Kopiert';
+                button.textContent = 'Copied';
                 setTimeout(() => {
                     button.classList.remove('copied');
                     button.textContent = originalText;
@@ -489,8 +543,8 @@
                 }, 1400);
             } catch (err) {
                 console.error(err);
-                button.textContent = 'Fehler';
-                showError('JSON konnte nicht kopiert werden.');
+                button.textContent = 'Error';
+                showError('JSON could not be copied.');
                 setTimeout(() => {
                     button.textContent = originalText;
                     button.disabled = false;
@@ -498,13 +552,16 @@
             }
         }
 
-        function resetFilters() {
+        async function resetFilters() {
             poseSelect.value = '';
+            genderSelect.value = '';
+            genderSelect.disabled = false;
             variantSelect.value = '';
             variantSelect.disabled = true;
             subposeSelect.value = '';
             subposeSelect.disabled = true;
             searchInput.value = '';
+            await loadFilterOptions();
             applyFilters(1);
         }
 

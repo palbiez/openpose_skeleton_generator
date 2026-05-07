@@ -1,5 +1,8 @@
+import os
 import pathlib
-p = pathlib.Path(r'C:\Users\firew\AppData\Local\Programs\ComfyUI\resources\ComfyUI\nodes.py')
+
+comfyui_root = pathlib.Path(os.getenv("COMFYUI_SOURCE_ROOT", pathlib.Path.home() / "ComfyUI"))
+p = comfyui_root / "nodes.py"
 text = p.read_text(encoding='utf-8').splitlines()
 for i in range(2170, 2241):
     if i < len(text):

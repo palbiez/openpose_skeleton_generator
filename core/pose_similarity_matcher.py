@@ -214,9 +214,9 @@ def map_pose_combination(pose, subpose):
 class PoseMatcher:
 
     def __init__(self):
-        print("Lade Referenzdaten...")
+        print("Loading reference poses...")
         self.vectors, self.meta = load_reference()
-        print(f"{len(self.vectors)} Referenzposen geladen")
+        print(f"{len(self.vectors)} reference poses loaded")
 
     # --------------------------------------------------
     # LOW LEVEL (NUMPY)
@@ -317,7 +317,7 @@ if __name__ == "__main__":
 
     matcher = PoseMatcher()
 
-    # Dummy Input (ersetzen!)
+    # Replace with real input for manual testing.
     test_kp = [0] * (17 * 3)
 
     print("\nSingle Match:")

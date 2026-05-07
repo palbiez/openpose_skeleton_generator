@@ -1,7 +1,8 @@
 import json
+import os
 from pathlib import Path
 
-ROOT = Path(r"C:\Users\firew\Documents\ComfyUI\input\openpose2\openpose")
+ROOT = Path(os.getenv("OPENPOSE2_DIR", Path.home() / "ComfyUI" / "input" / "openpose2")) / "openpose"
 OUTPUT = ROOT / "person_keypoints_train2017.json"
 
 images = []
@@ -17,7 +18,7 @@ for json_file in ROOT.rglob("*.json"):
         with open(json_file, "r", encoding="utf-8") as f:
             data = json.load(f)
     except Exception as e:
-        print(f"[FEHLER] {json_file}: {e}")
+        print(f"[ERROR] {json_file}: {e}")
         continue
 
     if "people" not in data or len(data["people"]) == 0:
@@ -49,7 +50,7 @@ for json_file in ROOT.rglob("*.json"):
             xs.append(x)
             ys.append(y)
 
-    # Bounding Box berechnen (optional aber sinnvoll)
+    # Calculate bounding box.
     if xs and ys:
         bbox = [
             min(xs),
@@ -72,7 +73,7 @@ for json_file in ROOT.rglob("*.json"):
     annotations.append({
         "id": annotation_id,
         "image_id": image_id,
-        "category_id": 1,  # ALLE NSFW
+        "category_id": 1,
         "keypoints": coco_kp,
         "num_keypoints": num_visible,
         "iscrowd": 0,
@@ -99,5 +100,5 @@ coco = {
 with open(OUTPUT, "w", encoding="utf-8") as f:
     json.dump(coco, f, indent=2)
 
-print(f"Fertig: {OUTPUT}")
+print(f"Done: {OUTPUT}")
 print(f"Images: {len(images)}")

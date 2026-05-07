@@ -46,7 +46,7 @@ Inputs:
 
 - `selection_mode`: `filters` or `pose_id`.
 - `pose_id`: direct registry ID when using ID mode.
-- `pose`, `variant`, `subpose`: registry filter values.
+- `pose`, `gender`, `variant`, `subpose`: registry filter values.
 - `attribute_query`: comma-separated attributes.
 - `attribute_mode`: `prefer`, `require_all`, or `ignore`.
 - `seed_control`, `seed`: deterministic selection controls.
@@ -122,4 +122,3 @@ Output:
 ## Legacy Node
 
 `SkeletonFromJSON` remains registered as `PAL Skeleton From IDs (Legacy)` for old workflows that dynamically add `pose_1_id`, `pose_2_id`, etc. New workflows should use `PAL OpenPose Renderer`.
-

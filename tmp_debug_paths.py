@@ -1,6 +1,8 @@
 import json
+import os
 from pathlib import Path
-openpose_dir = Path("C:\\Users\\firew\\Documents\\ComfyUI\\input\\openpose2")
+
+openpose_dir = Path(os.getenv("OPENPOSE2_DIR", Path.home() / "ComfyUI" / "input" / "openpose2"))
 with open(openpose_dir / 'pose_index.json', 'r', encoding='utf-8-sig') as f:
     pose_index = json.load(f)
 for pose_name, genders in pose_index.items():

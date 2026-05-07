@@ -538,10 +538,10 @@ class PoseRegistry:
                             except json.JSONDecodeError:
                                 continue
 
-            # Fallback: try exiftool if available
+            # Fallback: try exiftool if the user configured it explicitly.
             try:
-                exiftool_path = r"C:\EasyDiffusion\exiftool\exiftool.exe"
-                if os.path.exists(exiftool_path):
+                exiftool_path = os.getenv("EXIFTOOL_PATH")
+                if exiftool_path and os.path.exists(exiftool_path):
                     result = subprocess.run(
                         [exiftool_path, "-j", str(png_path)],
                         capture_output=True,

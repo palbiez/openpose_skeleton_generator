@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -172,7 +173,8 @@ class PoseBrowserLauncherNode:
                 stderr=subprocess.DEVNULL,
                 stdin=subprocess.DEVNULL,
             )
-            message = "OpenPose Browser launched on http://127.0.0.1:8189"
+            port = os.getenv("OPENPOSE_BROWSER_PORT", "8189")
+            message = f"Standalone OpenPose Browser launched on http://127.0.0.1:{port}"
             print(f"[PoseBrowserLauncher] {message}")
             return (message,)
         except Exception as e:

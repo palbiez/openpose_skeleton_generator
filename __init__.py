@@ -31,6 +31,104 @@ NODE_CLASS_MAPPINGS = {
 }
 
 
+def _register_comfy_routes() -> bool:
+    try:
+        from aiohttp import web
+        from server import PromptServer
+        from . import pose_browser_server as browser
+    except Exception as exc:
+        debug_log(f"[PAL OpenPose Browser] ComfyUI route registration skipped: {exc}")
+        return False
+
+    routes = PromptServer.instance.routes
+    static_index = Path(__file__).parent / "web" / "pose_browser" / "index.html"
+
+    @routes.get("/poses")
+    async def pal_pose_browser_index(request):
+        if static_index.exists():
+            return web.FileResponse(path=str(static_index))
+        return web.json_response({"error": "Pose browser index not found"}, status=404)
+
+    @routes.get("/poses/")
+    async def pal_pose_browser_index_slash(request):
+        return await pal_pose_browser_index(request)
+
+    @routes.get("/poses/api/options")
+    async def pal_pose_browser_options(request):
+        params = request.rel_url.query
+        data = browser.get_filter_options(
+            pose=params.get("pose") or None,
+            gender=params.get("gender") or None,
+            variant=params.get("variant") or None,
+        )
+        return web.json_response(data)
+
+    @routes.get("/poses/api/filter")
+    async def pal_pose_browser_filter(request):
+        params = request.rel_url.query
+        data = browser.filter_poses(
+            pose=params.get("pose") or None,
+            gender=params.get("gender") or None,
+            variant=params.get("variant") or None,
+            subpose=params.get("subpose") or None,
+            search=params.get("search") or None,
+            page=int(params.get("page") or 1),
+            limit=int(params.get("limit") or 50),
+        )
+        return web.json_response(data)
+
+    @routes.get("/poses/api/pose/{pose_id}")
+    async def pal_pose_browser_pose(request):
+        pose_id = int(request.match_info["pose_id"])
+        pose_data = browser.registry.get_pose_by_id(pose_id)
+        if not pose_data:
+            return web.json_response({"detail": "Pose not found"}, status=404)
+        return web.json_response({key: value for key, value in pose_data.items() if key != "keypoints"})
+
+    @routes.get("/poses/api/pose/{pose_id}/files")
+    async def pal_pose_browser_pose_files(request):
+        pose_id = int(request.match_info["pose_id"])
+        try:
+            return web.json_response(browser.get_pose_files(pose_id))
+        except Exception:
+            return web.json_response({"detail": "Pose not found"}, status=404)
+
+    @routes.get("/poses/api/pose/{pose_id}/copy")
+    async def pal_pose_browser_pose_copy(request):
+        pose_id = int(request.match_info["pose_id"])
+        try:
+            return web.json_response(browser.get_pose_copy_json(pose_id))
+        except Exception:
+            return web.json_response({"detail": "Pose JSON not found"}, status=404)
+
+    @routes.get("/poses/api/images/{pose_id}")
+    async def pal_pose_browser_image(request):
+        return await pal_pose_browser_image_by_kind(request, "preview")
+
+    @routes.get("/poses/api/images/{pose_id}/{image_kind}")
+    async def pal_pose_browser_image_by_kind_route(request):
+        return await pal_pose_browser_image_by_kind(request, request.match_info["image_kind"])
+
+    async def pal_pose_browser_image_by_kind(request, image_kind):
+        pose_id = int(request.match_info["pose_id"])
+        pose_data = browser.registry.get_pose_by_id(pose_id)
+        if not pose_data:
+            return web.json_response({"detail": "Pose not found"}, status=404)
+        image_path = browser._resolve_image_path(pose_data, image_kind)
+        if not image_path:
+            return web.json_response({"detail": "Image not found"}, status=404)
+        path = Path(image_path)
+        if not path.exists():
+            return web.json_response({"detail": "Image file not found"}, status=404)
+        return web.FileResponse(path=str(path))
+
+    debug_log("[PAL OpenPose Browser] ComfyUI route registered at /poses")
+    return True
+
+
+COMFY_POSE_BROWSER_ROUTES_REGISTERED = _register_comfy_routes()
+
+
 def _is_port_open(host: str, port: int) -> bool:
     test_host = "127.0.0.1" if host == "0.0.0.0" else host
     try:
@@ -86,7 +184,10 @@ def _launch_browser_server() -> None:
         debug_log(f"[DEBUG] _launch_browser_server: Server start failed: {exc}")
 
 
-if os.getenv("OPENPOSE_BROWSER_AUTOSTART", "1").lower() not in {"0", "false", "no"}:
+if (
+    not COMFY_POSE_BROWSER_ROUTES_REGISTERED
+    and os.getenv("OPENPOSE_BROWSER_AUTOSTART", "1").lower() not in {"0", "false", "no"}
+):
     try:
         _launch_browser_server()
     except Exception as exc:

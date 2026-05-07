@@ -3,7 +3,7 @@ import json
 
 matcher = PoseMatcher()
 
-# echte Testdaten (deine Keypoints)
+# Real test data.
 kp = [
     230.64526058415476,103.61311232071887,1,
     213.13566555183502,154.24896822499511,1,

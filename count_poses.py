@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 
-path = r"C:\Users\firew\Documents\ComfyUI\models\openpose"
+path = os.getenv("OPENPOSE_MODELS_PATH", str(Path.home() / "ComfyUI" / "models" / "openpose"))
 png_count = 0
 json_count = 0
 

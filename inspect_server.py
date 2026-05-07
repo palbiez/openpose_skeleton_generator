@@ -1,5 +1,8 @@
+import os
 import pathlib
-p = pathlib.Path(r'C:\Users\firew\AppData\Local\Programs\ComfyUI\resources\ComfyUI\server.py')
+
+comfyui_root = pathlib.Path(os.getenv("COMFYUI_SOURCE_ROOT", pathlib.Path.home() / "ComfyUI"))
+p = comfyui_root / "server.py"
 text = p.read_text(encoding='utf-8', errors='ignore').splitlines()
 for i, line in enumerate(text):
     if 'EXTENSION_WEB_DIRS' in line or 'web_dir' in line or 'static' in line or 'app.mount' in line:

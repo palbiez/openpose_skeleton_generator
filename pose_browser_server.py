@@ -55,22 +55,22 @@ def get_all_poses(page: int = Query(1, ge=1), limit: int = Query(50, ge=1, le=50
 @app.get("/api/filter")
 def filter_poses(
     pose: str = Query(None),
+    gender: str = Query(None),
     variant: str = Query(None),
     subpose: str = Query(None),
     search: str = Query(None),
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=500)
 ):
-    debug_log(f"[DEBUG] /api/filter: Called with pose={pose}, variant={variant}, subpose={subpose}, search={search}, page={page}, limit={limit}")
+    debug_log(f"[DEBUG] /api/filter: Called with pose={pose}, gender={gender}, variant={variant}, subpose={subpose}, search={search}, page={page}, limit={limit}")
     debug_log(f"[DEBUG] /api/filter: Registry has {len(registry.poses)} poses")
     
-    # Use direct access instead of search method for debugging
-    if pose is None and variant is None and subpose is None:
+    if pose is None and gender is None and variant is None and subpose is None:
         debug_log("[DEBUG] /api/filter: No filters specified, using all poses")
         matching_ids = [p["id"] for p in registry.poses]
     else:
-        debug_log(f"[DEBUG] /api/filter: Using registry.search with pose={pose}, variant={variant}, subpose={subpose}")
-        matching_ids = registry.search(pose=pose, variant=variant, subpose=subpose)
+        debug_log(f"[DEBUG] /api/filter: Using registry.search with pose={pose}, gender={gender}, variant={variant}, subpose={subpose}")
+        matching_ids = registry.search(pose=pose, gender=gender, variant=variant, subpose=subpose)
     
     debug_log(f"[DEBUG] /api/filter: Found {len(matching_ids)} matching IDs")
     poses = []
@@ -128,18 +128,24 @@ def filter_poses(
 
 
 @app.get("/api/options")
-def get_filter_options(pose: str = Query(None), variant: str = Query(None)):
+def get_filter_options(
+    pose: str = Query(None),
+    gender: str = Query(None),
+    variant: str = Query(None),
+):
     all_poses = registry.get_all_poses()
+    genders = registry.get_available_genders(pose) if pose else registry.get_available_genders()
     variants = []
     subposes = []
     if pose:
-        variants = registry.get_available_variants(pose)
+        variants = registry.get_available_variants(pose, gender=gender)
         if variant and variant in variants:
-            subposes = registry.get_available_subposes(pose, variant)
+            subposes = registry.get_available_subposes(pose, variant, gender=gender)
         elif variants:
-            subposes = registry.get_available_subposes(pose, variants[0])
+            subposes = registry.get_available_subposes(pose, variants[0], gender=gender)
     return {
         "poses": all_poses,
+        "genders": genders,
         "variants": variants,
         "subposes": subposes
     }
@@ -209,7 +215,7 @@ def root():
     index_path = static_dir / "index.html"
     if index_path.exists():
         return FileResponse(str(index_path))
-    return {"message": "PAL OpenPose Browser ready. Access http://localhost:8189"}
+    return {"message": "PAL OpenPose Browser ready. Access http://127.0.0.1:8189 or ComfyUI /poses when route integration is available."}
 
 
 if static_dir.exists():

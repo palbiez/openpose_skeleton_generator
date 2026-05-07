@@ -1,8 +1,9 @@
 import json
+import os
 from pathlib import Path
 from collections import defaultdict
 
-ROOT = Path(r"C:\Users\firew\Documents\ComfyUI\input\openpose2\openpose")
+ROOT = Path(os.getenv("OPENPOSE2_DIR", Path.home() / "ComfyUI" / "input" / "openpose2")) / "openpose"
 OUTPUT_DIR = ROOT / "structured"
 
 OUTPUT_DIR.mkdir(exist_ok=True)
@@ -13,7 +14,7 @@ grouped = defaultdict(list)
 def parse_folder(folder_name):
     folder_name = folder_name.lower()
 
-    # NSFW erkennen
+    # Detect NSFW variant.
     if folder_name.startswith("nsfw_"):
         variant = "nsfw"
         name = folder_name.replace("nsfw_", "")
@@ -21,15 +22,15 @@ def parse_folder(folder_name):
         variant = "base"
         name = folder_name
 
-    # Pose bestimmen
+    # Determine pose.
     if name in ["lying", "kneeling", "standing", "sitting"]:
         pose = name
         subpose = name
     else:
-        # alles andere = Subpose
+        # Everything else is treated as a subpose.
         subpose = name
 
-        # einfache Zuordnung
+        # Simple mapping.
         if "kneel" in name or "all_fours" in name:
             pose = "kneeling"
         elif "split" in name or "lying" in name:
@@ -45,7 +46,7 @@ def parse_folder(folder_name):
 
 
 # -------------------------
-# Verarbeitung
+# Processing.
 # -------------------------
 for json_file in ROOT.rglob("*.json"):
 
@@ -65,8 +66,8 @@ for json_file in ROOT.rglob("*.json"):
 
     keypoints = person["pose_keypoints_2d"]
 
-    # Ordner analysieren
-    folder = json_file.parent.parent.name  # z.B. NSFW_Kneeling
+    # Analyze folder.
+    folder = json_file.parent.parent.name
     pose, variant, subpose = parse_folder(folder)
 
     grouped[(pose, variant)].append({
@@ -79,7 +80,7 @@ for json_file in ROOT.rglob("*.json"):
 
 
 # -------------------------
-# Export
+# Export.
 # -------------------------
 print("\n--- Export ---\n")
 
@@ -91,4 +92,4 @@ for (pose, variant), items in grouped.items():
 
     print(f"{pose}_{variant}: {len(items)}")
 
-print("\nFertig.")
+print("\nDone.")

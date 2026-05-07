@@ -20,7 +20,11 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 
-DEFAULT_ROOT = Path(r"C:\Users\firew\Documents\ComfyUI\models\openpose")
+PLUGIN_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_ROOT_CANDIDATES = [
+    PLUGIN_ROOT.parent.parent / "models" / "openpose",
+    Path.cwd() / "models" / "openpose",
+]
 
 OPENPOSE_18 = {
     "nose": 0,
@@ -472,7 +476,10 @@ def resolve_roots(values: Optional[List[str]]) -> List[Path]:
     env_path = os.getenv("OPENPOSE_MODELS_PATH")
     if env_path:
         return [Path(env_path)]
-    return [DEFAULT_ROOT]
+    for candidate in DEFAULT_ROOT_CANDIDATES:
+        if candidate.exists():
+            return [candidate]
+    return [DEFAULT_ROOT_CANDIDATES[0]]
 
 
 def scan_root(

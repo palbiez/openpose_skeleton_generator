@@ -1,9 +1,11 @@
 import json
 import os
+from pathlib import Path
 from collections import defaultdict
 
-INPUT_FILE = r"C:\Users\firew\Documents\ComfyUI\input\openpose2\person_keypoints_custom.json"
-OUTPUT_DIR = r"C:\Users\firew\Documents\ComfyUI\input\openpose2\split"
+BASE_DIR = Path(os.getenv("OPENPOSE2_DIR", Path.home() / "ComfyUI" / "input" / "openpose2"))
+INPUT_FILE = str(BASE_DIR / "person_keypoints_custom.json")
+OUTPUT_DIR = str(BASE_DIR / "split")
 
 MIN_KEYPOINTS = 10
 MIN_AREA = 2000
@@ -12,7 +14,7 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 
 # -------------------------
-# Hilfsfunktionen
+# Helpers.
 # -------------------------
 def get_point(kp, i):
     return kp[i*3], kp[i*3+1], kp[i*3+2]
@@ -74,7 +76,7 @@ def classify_pose(kp):
 def classify_subpose(kp):
     result = {}
 
-    # Knie
+    # Knees.
     _, ky_l, _ = get_point(kp, 13)
     _, ky_r, _ = get_point(kp, 14)
 
@@ -83,7 +85,7 @@ def classify_subpose(kp):
     else:
         result["knees"] = "one"
 
-    # Beinabstand
+    # Leg distance.
     kx_l, _, _ = get_point(kp, 13)
     kx_r, _, _ = get_point(kp, 14)
 
@@ -104,7 +106,7 @@ def classify_subpose(kp):
     return result
 
 # -------------------------
-# Hauptverarbeitung
+# Main processing.
 # -------------------------
 with open(INPUT_FILE, "r") as f:
     data = json.load(f)
@@ -122,7 +124,7 @@ for ann in data["annotations"]:
 
     keypoints = ann["keypoints"]
 
-    # Dedup (optional aber sinnvoll)
+    # Deduplicate.
     kp_hash = tuple(keypoints)
     if kp_hash in seen:
         continue
@@ -145,7 +147,7 @@ for ann in data["annotations"]:
 
 
 # -------------------------
-# Dateien schreiben
+# Write files.
 # -------------------------
 print("\n--- Export ---\n")
 
@@ -157,4 +159,4 @@ for (pose, variant), items in grouped.items():
 
     print(f"{pose}_{variant}: {len(items)}")
 
-print("\nFertig.")
+print("\nDone.")

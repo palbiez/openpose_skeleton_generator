@@ -77,15 +77,27 @@ python scripts/build_pose_cache.py --clean
 
 Assign automatic pose attributes from keypoint geometry:
 
+```powershell
+python scripts/auto_pose_attributes.py --root "$env:USERPROFILE\Documents\ComfyUI\models\openpose" --write
+```
+
+macOS / Linux example:
+
 ```bash
-python scripts/auto_pose_attributes.py --root C:\Users\firew\Documents\ComfyUI\models\openpose --write
+python scripts/auto_pose_attributes.py --root "$HOME/ComfyUI/models/openpose" --write
 ```
 
 Attributes are written into OpenPose JSON metadata as `meta.auto_attributes` and `meta.attributes`.
 
 ## Pose Browser
 
-The browser starts automatically with ComfyUI and is available at:
+When loaded inside ComfyUI, the browser is registered under the ComfyUI server:
+
+```text
+http://127.0.0.1:8188/poses
+```
+
+If the ComfyUI route integration is not available, the standalone browser server can still run on:
 
 ```text
 http://127.0.0.1:8189
@@ -93,11 +105,37 @@ http://127.0.0.1:8189
 
 Environment variables:
 
+Windows PowerShell:
+
+```powershell
+$env:OPENPOSE_MODELS_PATH="$env:USERPROFILE\Documents\ComfyUI\models\openpose"
+$env:OPENPOSE_BROWSER_HOST="0.0.0.0"
+$env:OPENPOSE_BROWSER_PORT="8189"
+$env:OPENPOSE_BROWSER_AUTOSTART="1"
+```
+
+Windows Command Prompt:
+
+```bat
+set OPENPOSE_MODELS_PATH=%USERPROFILE%\Documents\ComfyUI\models\openpose
+set OPENPOSE_BROWSER_HOST=0.0.0.0
+set OPENPOSE_BROWSER_PORT=8189
+set OPENPOSE_BROWSER_AUTOSTART=1
+```
+
+macOS / Linux:
+
 ```bash
-OPENPOSE_MODELS_PATH=C:\Users\<user>\Documents\ComfyUI\models\openpose
-OPENPOSE_BROWSER_HOST=0.0.0.0
-OPENPOSE_BROWSER_PORT=8189
-OPENPOSE_BROWSER_AUTOSTART=1
+export OPENPOSE_MODELS_PATH="$HOME/ComfyUI/models/openpose"
+export OPENPOSE_BROWSER_HOST="0.0.0.0"
+export OPENPOSE_BROWSER_PORT="8189"
+export OPENPOSE_BROWSER_AUTOSTART="1"
+```
+
+Optional PNG metadata fallback:
+
+```bash
+export EXIFTOOL_PATH="/usr/local/bin/exiftool"
 ```
 
 ## Main Nodes
@@ -131,3 +169,4 @@ python -m pytest tests/smoke
 - [Architecture](docs/ARCHITECTURE.md)
 - [Ollama Schema](docs/OLLAMA_SCHEMA.md)
 - [Node Reference](docs/NODE_REFERENCE.md)
+- [Dataset Gaps](docs/DATASET_GAPS.md)

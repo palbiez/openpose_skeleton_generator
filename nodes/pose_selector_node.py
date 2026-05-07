@@ -21,6 +21,7 @@ def get_pose_options():
     try:
         registry = get_registry()
         poses = {item.get("pose", "unknown") for item in registry.poses}
+        genders = {item.get("gender", "unknown") for item in registry.poses}
         variants = {item.get("variant", "base") for item in registry.poses}
         subposes = {item.get("subpose", "default") for item in registry.poses}
         attributes = {
@@ -31,6 +32,7 @@ def get_pose_options():
         }
         _cached_options = {
             "poses": sorted(poses) or ["standing"],
+            "genders": ["any"] + sorted(genders),
             "variants": sorted(variants) or ["base"],
             "subposes": sorted(subposes) or ["default"],
             "attributes": sorted(attributes),
@@ -38,6 +40,7 @@ def get_pose_options():
     except Exception:
         _cached_options = {
             "poses": ["standing", "sitting", "kneeling", "lying"],
+            "genders": ["any", "f", "m", "unknown"],
             "variants": ["base", "nsfw"],
             "subposes": ["neutral", "default"],
             "attributes": [],
@@ -83,6 +86,7 @@ class PoseSelectorNode:
                 "selection_mode": (["filters", "pose_id"], {"default": "filters"}),
                 "pose_id": ("INT", {"default": 0, "min": 0}),
                 "pose": (options["poses"], {"default": options["poses"][0]}),
+                "gender": (options["genders"], {"default": options["genders"][0]}),
                 "variant": (options["variants"], {"default": options["variants"][0]}),
                 "subpose": (options["subposes"], {"default": options["subposes"][0]}),
                 "attribute_query": (
@@ -118,14 +122,17 @@ class PoseSelectorNode:
             score += len(set(attributes) & item_attributes) * 10
         return score
 
-    def _select_by_filters(self, pose, variant, subpose, attributes, attribute_mode):
+    def _select_by_filters(self, pose, gender, variant, subpose, attributes, attribute_mode):
         pose = normalize_token(pose)
+        gender = normalize_token(gender)
         variant = normalize_token(variant)
         subpose = normalize_token(subpose)
 
         candidates = []
         for item in self.registry.poses:
             if normalize_token(item.get("pose")) != pose:
+                continue
+            if gender and gender != "any" and normalize_token(item.get("gender")) != gender:
                 continue
             if variant and normalize_token(item.get("variant")) != variant:
                 continue
@@ -137,7 +144,7 @@ class PoseSelectorNode:
                 candidates.append((score, item))
 
         if not candidates and attributes and attribute_mode == "prefer":
-            return self._select_by_filters(pose, variant, subpose, [], "ignore")
+            return self._select_by_filters(pose, gender, variant, subpose, [], "ignore")
 
         if not candidates:
             return None, []
@@ -146,7 +153,7 @@ class PoseSelectorNode:
         best = [item for score, item in candidates if score == best_score]
         return random.choice(best), best
 
-    def select(self, selection_mode, pose_id, pose, variant, subpose, attribute_query, attribute_mode, seed_control, seed):
+    def select(self, selection_mode, pose_id, pose, gender, variant, subpose, attribute_query, attribute_mode, seed_control, seed):
         final_seed = _next_seed(self, seed_control, seed)
         random.seed(final_seed)
         attributes = normalize_attributes(attribute_query)
@@ -157,7 +164,7 @@ class PoseSelectorNode:
             selected = self.registry.get_pose_by_id(int(pose_id))
             candidates = [selected] if selected else []
         else:
-            selected, candidates = self._select_by_filters(pose, variant, subpose, attributes, attribute_mode)
+            selected, candidates = self._select_by_filters(pose, gender, variant, subpose, attributes, attribute_mode)
 
         if not selected:
             report = {
@@ -165,6 +172,7 @@ class PoseSelectorNode:
                 "selection_mode": selection_mode,
                 "pose_id": pose_id,
                 "pose": pose,
+                "gender": gender,
                 "variant": variant,
                 "subpose": subpose,
                 "attributes": attributes,

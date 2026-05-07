@@ -6,12 +6,12 @@ import subprocess
 from pathlib import Path
 from PIL import Image
 
-# ===== KONFIG =====
-ROOT_DIR = Path(r"C:\Users\firew\Documents\ComfyUI\input\openpose2\\")
-USE_EXIFTOOL_FALLBACK = True  # deutlich robuster
-EXIFTOOL_PATH = r"C:\EasyDiffusion\exiftool\exiftool.exe"
+# ===== CONFIG =====
+ROOT_DIR = Path(os.getenv("OPENPOSE2_DIR", Path.home() / "ComfyUI" / "input" / "openpose2"))
+USE_EXIFTOOL_FALLBACK = True
+EXIFTOOL_PATH = os.getenv("EXIFTOOL_PATH", "exiftool")
 
-# ===== FUNKTIONEN =====
+# ===== FUNCTIONS =====
 
 def extract_json_pil(png_path: Path):
     try:
@@ -25,7 +25,7 @@ def extract_json_pil(png_path: Path):
                         except json.JSONDecodeError:
                             continue
     except Exception as e:
-        print(f"[FEHLER PIL] {png_path}: {e}")
+        print(f"[PIL ERROR] {png_path}: {e}")
     return None, None
 
 
@@ -50,7 +50,7 @@ def extract_json_exiftool(png_path: Path):
                     except json.JSONDecodeError:
                         continue
     except Exception as e:
-        print(f"[FEHLER EXIFTOOL] {png_path}: {e}")
+        print(f"[EXIFTOOL ERROR] {png_path}: {e}")
 
     return None, None
 
@@ -61,10 +61,10 @@ def process_file(png_path: Path):
     if json_path.exists():
         return
 
-    # 1. Versuch: PIL
+    # First attempt: PIL.
     data, source = extract_json_pil(png_path)
 
-    # 2. Fallback: exiftool
+    # Second attempt: exiftool.
     if data is None and USE_EXIFTOOL_FALLBACK:
         data, source = extract_json_exiftool(png_path)
 
@@ -75,9 +75,9 @@ def process_file(png_path: Path):
 
             print(f"[OK] {png_path} ({source})")
         except Exception as e:
-            print(f"[FEHLER WRITE] {png_path}: {e}")
+                print(f"[WRITE ERROR] {png_path}: {e}")
     else:
-        print(f"[KEIN JSON] {png_path}")
+        print(f"[NO JSON] {png_path}")
 
 
 # ===== MAIN =====
@@ -90,8 +90,8 @@ def main():
         count_total += 1
         process_file(png_path)
 
-    print("\n--- FERTIG ---")
-    print(f"Dateien geprüft: {count_total}")
+    print("\n--- DONE ---")
+    print(f"Files checked: {count_total}")
 
 
 if __name__ == "__main__":

@@ -1,11 +1,12 @@
 import json
+import os
 import numpy as np
 from pathlib import Path
 
 # -------------------------
 # PATHS
 # -------------------------
-INPUT_DIR = Path(r"C:\Users\firew\Documents\ComfyUI\input\openpose2\split")
+INPUT_DIR = Path(os.getenv("OPENPOSE2_DIR", Path.home() / "ComfyUI" / "input" / "openpose2")) / "split"
 OUTPUT_DIR = INPUT_DIR / "enriched"
 
 OUTPUT_DIR.mkdir(exist_ok=True)
@@ -126,4 +127,4 @@ for file in INPUT_DIR.glob("*.json"):
 
     print(f"Saved: {out_file.name} ({len(enriched)})")
 
-print("\nFERTIG.")
+print("\nDONE.")

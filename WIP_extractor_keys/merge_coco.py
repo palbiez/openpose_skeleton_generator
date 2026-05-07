@@ -1,11 +1,14 @@
 import json
+import os
 from pathlib import Path
 
-# ===== INPUT =====
-COCO_FILE = Path(r"C:\Users\firew\Documents\ComfyUI\input\openpose2\person_keypoints_train2017.json")
-NSFW_FILE = Path(r"C:\Users\firew\Documents\ComfyUI\input\openpose2\openpose\person_keypoints_train2017.json")
+BASE_DIR = Path(os.getenv("OPENPOSE2_DIR", Path.home() / "ComfyUI" / "input" / "openpose2"))
 
-OUTPUT = Path(r"C:\Users\firew\Documents\ComfyUI\input\openpose2\person_keypoints_custom.json")
+# ===== INPUT =====
+COCO_FILE = BASE_DIR / "person_keypoints_train2017.json"
+NSFW_FILE = BASE_DIR / "openpose" / "person_keypoints_train2017.json"
+
+OUTPUT = BASE_DIR / "person_keypoints_custom.json"
 
 
 def load(path):
@@ -16,20 +19,20 @@ def load(path):
 coco = load(COCO_FILE)
 nsfw = load(NSFW_FILE)
 
-# ===== OUTPUT STRUKTUR =====
+# ===== OUTPUT STRUCTURE =====
 images = []
 annotations = []
 
 image_id = 1
 annotation_id = 1
 
-# ===== Kategorien sauber definieren =====
+# ===== CATEGORIES =====
 categories = [
     {"id": 1, "name": "person"},
     {"id": 2, "name": "person_nsfw"}
 ]
 
-# ===== DUPE FILTER =====
+# ===== DUPLICATE FILTER =====
 seen_keypoints = set()
 
 
@@ -38,7 +41,7 @@ def process_dataset(dataset, category_id):
 
     id_map = {}
 
-    # Images neu nummerieren
+    # Renumber images.
     for img in dataset["images"]:
         id_map[img["id"]] = image_id
 
@@ -51,14 +54,14 @@ def process_dataset(dataset, category_id):
 
         image_id += 1
 
-    # Annotations neu aufbauen
+    # Rebuild annotations.
     for ann in dataset["annotations"]:
         kp = ann.get("keypoints")
 
         if not kp:
             continue
 
-        # Duplikate vermeiden
+        # Avoid duplicates.
         key = tuple(kp)
         if key in seen_keypoints:
             continue
@@ -78,11 +81,11 @@ def process_dataset(dataset, category_id):
         annotation_id += 1
 
 
-# ===== DATEN VERARBEITEN =====
-print("Verarbeite COCO (SFW)...")
+# ===== PROCESS DATA =====
+print("Processing COCO (SFW)...")
 process_dataset(coco, category_id=1)
 
-print("Verarbeite NSFW...")
+print("Processing NSFW...")
 process_dataset(nsfw, category_id=2)
 
 # ===== FINAL =====
@@ -96,10 +99,10 @@ merged = {
     "categories": categories
 }
 
-# KOMPAKT speichern
+# Save compact JSON.
 with open(OUTPUT, "w", encoding="utf-8") as f:
     json.dump(merged, f, separators=(",", ":"))
 
-print("FERTIG:", OUTPUT)
+print("DONE:", OUTPUT)
 print("Images:", len(images))
 print("Annotations:", len(annotations))
