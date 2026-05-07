@@ -1,6 +1,12 @@
-# PAL OpenPose Skeleton Generator for ComfyUI
+# OpenPose Manager for ComfyUI
 
-PAL OpenPose Skeleton Generator is a ComfyUI custom node package for selecting, matching, and rendering real OpenPose skeletons from a local pose library.
+OpenPose Manager (OPM) is a ComfyUI custom node package for selecting, matching, and rendering real OpenPose skeletons from a local pose library.
+
+Repository:
+
+```text
+https://github.com/palbiez/openpose_manager
+```
 
 The intended pipeline is:
 
@@ -140,13 +146,13 @@ export EXIFTOOL_PATH="/usr/local/bin/exiftool"
 
 ## Main Nodes
 
-- `PAL Ollama Pose Parser`: validates and normalizes Ollama JSON output.
-- `PAL Pose From Structure`: selects real database poses from normalized structure JSON.
-- `PAL Pose Selector`: manually selects a pose by ID, filters, and attributes.
-- `PAL Pose By ID`: loads pose JSON, image paths, and metadata from a browser pose ID.
-- `PAL OpenPose Renderer`: renders PAL/OpenPose keypoint JSON to a ComfyUI `IMAGE`.
-- `PAL Pose Matcher`: finds similar database poses for incoming keypoints.
-- `PAL OpenPose Browser Launcher`: manually starts the browser server.
+- `OPM_Ollama Pose Parser`: validates and normalizes Ollama JSON output.
+- `OPM_Pose From Structure`: selects real database poses from normalized structure JSON.
+- `OPM_Pose Selector`: manually selects a pose by ID, filters, and attributes.
+- `OPM_Pose By ID`: loads pose JSON, image paths, and metadata from a browser pose ID.
+- `OPM_OpenPose Renderer`: renders OPM/OpenPose keypoint JSON to a ComfyUI `IMAGE`.
+- `OPM_Pose Matcher`: finds similar database poses for incoming keypoints.
+- `OPM_OpenPose Browser Launcher`: manually starts the browser server.
 
 See [docs/NODE_REFERENCE.md](docs/NODE_REFERENCE.md) for input and output contracts.
 

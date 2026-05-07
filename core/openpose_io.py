@@ -225,7 +225,7 @@ def coerce_keypoints(value: Any) -> Optional[List[float]]:
 
 
 def extract_people(payload: Any) -> List[PosePerson]:
-    """Extract all people from a PAL, OpenPose, or match-result JSON payload."""
+    """Extract all people from an OPM, OpenPose, or match-result JSON payload."""
     data = parse_json_payload(payload)
     people: List[PosePerson] = []
 
@@ -404,4 +404,3 @@ def make_pose_payload(people: Sequence[Dict[str, Any]], seed: Optional[int] = No
     if seed is not None:
         payload["seed"] = int(seed)
     return payload
-

@@ -18,7 +18,19 @@ except ImportError:
     def debug_log(message: str):
         print(message)
 
-NODE_CLASS_MAPPINGS = {
+OPM_NODE_CLASS_MAPPINGS = {
+    "OPM_OllamaPoseParser": OllamaPoseParserNode,
+    "OPM_OpenPoseRenderer": PoseOpenPoseRendererNode,
+    "OPM_SkeletonFromIDs": SkeletonFromJSON,
+    "OPM_PoseMatcher": PoseMatcherNode,
+    "OPM_PoseSelector": PoseSelectorNode,
+    "OPM_PoseFromStructure": PoseFromStructureNode,
+    "OPM_PoseByID": PoseLoadByIdNode,
+    "OPM_PoseStructureByID": PoseStructureByIdNode,
+    "OPM_OpenPoseBrowserLauncher": PoseBrowserLauncherNode,
+}
+
+LEGACY_NODE_CLASS_MAPPINGS = {
     "OllamaPoseParserNode": OllamaPoseParserNode,
     "PoseOpenPoseRendererNode": PoseOpenPoseRendererNode,
     "SkeletonFromJSON": SkeletonFromJSON,
@@ -30,6 +42,11 @@ NODE_CLASS_MAPPINGS = {
     "PoseBrowserLauncherNode": PoseBrowserLauncherNode,
 }
 
+NODE_CLASS_MAPPINGS = {
+    **OPM_NODE_CLASS_MAPPINGS,
+    **LEGACY_NODE_CLASS_MAPPINGS,
+}
+
 
 def _register_comfy_routes() -> bool:
     try:
@@ -37,7 +54,7 @@ def _register_comfy_routes() -> bool:
         from server import PromptServer
         from . import pose_browser_server as browser
     except Exception as exc:
-        debug_log(f"[PAL OpenPose Browser] ComfyUI route registration skipped: {exc}")
+        debug_log(f"[OPM OpenPose Browser] ComfyUI route registration skipped: {exc}")
         return False
 
     routes = PromptServer.instance.routes
@@ -122,7 +139,7 @@ def _register_comfy_routes() -> bool:
             return web.json_response({"detail": "Image file not found"}, status=404)
         return web.FileResponse(path=str(path))
 
-    debug_log("[PAL OpenPose Browser] ComfyUI route registered at /poses")
+    debug_log("[OPM OpenPose Browser] ComfyUI route registered at /poses")
     return True
 
 
@@ -191,18 +208,35 @@ if (
     try:
         _launch_browser_server()
     except Exception as exc:
-        debug_log(f"[PAL OpenPose Browser] auto-start initialization failed: {exc}")
+        debug_log(f"[OPM OpenPose Browser] auto-start initialization failed: {exc}")
 
 WEB_DIRECTORY = "web"
 
+OPM_NODE_DISPLAY_NAME_MAPPINGS = {
+    "OPM_OllamaPoseParser": "OPM_Ollama Pose Parser",
+    "OPM_OpenPoseRenderer": "OPM_OpenPose Renderer",
+    "OPM_SkeletonFromIDs": "OPM_Skeleton From IDs",
+    "OPM_PoseMatcher": "OPM_Pose Matcher",
+    "OPM_PoseSelector": "OPM_Pose Selector",
+    "OPM_PoseFromStructure": "OPM_Pose From Structure",
+    "OPM_PoseByID": "OPM_Pose By ID",
+    "OPM_PoseStructureByID": "OPM_Pose Structure By ID",
+    "OPM_OpenPoseBrowserLauncher": "OPM_OpenPose Browser Launcher",
+}
+
+LEGACY_NODE_DISPLAY_NAME_MAPPINGS = {
+    "OllamaPoseParserNode": "OPM_Legacy Ollama Pose Parser",
+    "PoseOpenPoseRendererNode": "OPM_Legacy OpenPose Renderer",
+    "SkeletonFromJSON": "OPM_Legacy Skeleton From IDs",
+    "PoseMatcherNode": "OPM_Legacy Pose Matcher",
+    "PoseSelectorNode": "OPM_Legacy Pose Selector",
+    "PoseFromStructureNode": "OPM_Legacy Pose From Structure",
+    "PoseLoadByIdNode": "OPM_Legacy Pose By ID",
+    "PoseStructureByIdNode": "OPM_Legacy Pose Structure By ID",
+    "PoseBrowserLauncherNode": "OPM_Legacy OpenPose Browser Launcher",
+}
+
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "OllamaPoseParserNode": "PAL Ollama Pose Parser",
-    "PoseOpenPoseRendererNode": "PAL OpenPose Renderer",
-    "SkeletonFromJSON": "PAL Skeleton From IDs (Legacy)",
-    "PoseMatcherNode": "PAL Pose Matcher",
-    "PoseSelectorNode": "PAL Pose Selector",
-    "PoseFromStructureNode": "PAL Pose From Structure",
-    "PoseLoadByIdNode": "PAL Pose By ID",
-    "PoseStructureByIdNode": "PAL Pose Structure by ID",
-    "PoseBrowserLauncherNode": "PAL OpenPose Browser Launcher",
+    **OPM_NODE_DISPLAY_NAME_MAPPINGS,
+    **LEGACY_NODE_DISPLAY_NAME_MAPPINGS,
 }

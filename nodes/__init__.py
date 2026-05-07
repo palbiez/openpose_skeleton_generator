@@ -1,2 +1,1 @@
-"""ComfyUI node implementations for PAL OpenPose Skeleton Generator."""
-
+"""ComfyUI node implementations for OpenPose Manager."""

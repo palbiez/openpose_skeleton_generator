@@ -25,7 +25,7 @@ except ImportError:
 
 
 class PoseOpenPoseRendererNode:
-    """Render PAL/OpenPose keypoint JSON into a ComfyUI IMAGE tensor."""
+    """Render OPM/OpenPose keypoint JSON into a ComfyUI IMAGE tensor."""
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -80,8 +80,8 @@ class SkeletonFromJSON:
     """
     Legacy ID-based renderer kept for existing ComfyUI workflows.
 
-    New workflows should use PAL OpenPose Renderer and feed it pose_json from
-    PAL Pose Selector, PAL Pose From Structure, or PAL Pose By ID.
+    New workflows should use OPM_OpenPose Renderer and feed it pose_json from
+    OPM_Pose Selector, OPM_Pose From Structure, or OPM_Pose By ID.
     """
 
     @classmethod

@@ -1,6 +1,6 @@
 # Node Reference
 
-## PAL Ollama Pose Parser
+## OPM_Ollama Pose Parser
 
 Class: `OllamaPoseParserNode`
 
@@ -17,7 +17,7 @@ Outputs:
 - `structure_json`: normalized pose intent JSON.
 - `parser_report_json`: parser status and counts.
 
-## PAL Pose From Structure
+## OPM_Pose From Structure
 
 Class: `PoseFromStructureNode`
 
@@ -36,7 +36,7 @@ Outputs:
 - `pose_json`: `pal_pose_selection/v1` with selected people and keypoints.
 - `match_report_json`: selected IDs, candidate counts, scores, and request echo.
 
-## PAL Pose Selector
+## OPM_Pose Selector
 
 Class: `PoseSelectorNode`
 
@@ -56,7 +56,7 @@ Outputs:
 - `pose_json`: selected pose as `pal_pose_selection/v1`.
 - `metadata_json`: selection report.
 
-## PAL Pose By ID
+## OPM_Pose By ID
 
 Class: `PoseLoadByIdNode`
 
@@ -75,15 +75,15 @@ Outputs:
 - `bone_image_path`: bone structure path when available.
 - `metadata_json`: pose metadata.
 
-## PAL OpenPose Renderer
+## OPM_OpenPose Renderer
 
 Class: `PoseOpenPoseRendererNode`
 
-Renders OpenPose/COCO/PAL keypoint JSON into a ComfyUI `IMAGE`.
+Renders OpenPose/COCO/OPM keypoint JSON into a ComfyUI `IMAGE`.
 
 Inputs:
 
-- `pose_json`: PAL selection JSON, OpenPose JSON, plain keypoint list, or matcher result list.
+- `pose_json`: OPM selection JSON, OpenPose JSON, plain keypoint list, or matcher result list.
 - `width`, `height`: output size.
 - `layout`: `fit_each_person` or `preserve_coordinates`.
 - `style`: `openpose_color` or `white`.
@@ -94,7 +94,7 @@ Outputs:
 - `image`: ComfyUI image tensor.
 - `rendered_pose_json`: final keypoint payload after optional fitting.
 
-## PAL Pose Matcher
+## OPM_Pose Matcher
 
 Class: `PoseMatcherNode`
 
@@ -109,7 +109,7 @@ Outputs:
 
 - `matches_json`: list of matched poses with IDs, scores, metadata, and keypoints.
 
-## PAL OpenPose Browser Launcher
+## OPM_OpenPose Browser Launcher
 
 Class: `PoseBrowserLauncherNode`
 
@@ -121,4 +121,4 @@ Output:
 
 ## Legacy Node
 
-`SkeletonFromJSON` remains registered as `PAL Skeleton From IDs (Legacy)` for old workflows that dynamically add `pose_1_id`, `pose_2_id`, etc. New workflows should use `PAL OpenPose Renderer`.
+`SkeletonFromJSON` remains registered as `OPM_Legacy Skeleton From IDs` for old workflows that dynamically add `pose_1_id`, `pose_2_id`, etc. New workflows should use `OPM_OpenPose Renderer`.

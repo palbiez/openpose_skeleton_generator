@@ -1,9 +1,9 @@
 const { app } = window.comfyAPI.app;
 
 app.registerExtension({
-    name: "PAL_open_skeleton_generator",
+    name: "OPM_openpose_manager",
     async beforeRegisterNodeDef(nodeType, nodeData, app) {
-        if (nodeData.name !== "SkeletonFromJSON") {
+        if (!["OPM_SkeletonFromIDs", "SkeletonFromJSON"].includes(nodeData.name)) {
             return;
         }
 

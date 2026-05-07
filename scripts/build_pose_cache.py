@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build or clean the PAL OpenPose registry cache."""
+"""Build or clean the OpenPose Manager registry cache."""
 
 import argparse
 import sys
@@ -51,7 +51,7 @@ def build_cache() -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Build or clean the PAL OpenPose registry cache.")
+    parser = argparse.ArgumentParser(description="Build or clean the OpenPose Manager registry cache.")
     parser.add_argument("--clean", action="store_true", help="Remove the cache instead of rebuilding it.")
     args = parser.parse_args()
 
@@ -64,4 +64,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

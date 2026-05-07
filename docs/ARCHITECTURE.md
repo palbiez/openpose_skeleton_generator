@@ -2,7 +2,7 @@
 
 ## Goal
 
-PAL OpenPose Skeleton Generator produces deterministic OpenPose skeleton inputs for ComfyUI workflows. It is designed for Flux / Flux2 pipelines where text prompts alone are not reliable enough for multi-person anatomy and spatial relationships.
+OpenPose Manager (OPM) produces deterministic OpenPose skeleton inputs for ComfyUI workflows. It is designed for Flux / Flux2 pipelines where text prompts alone are not reliable enough for multi-person anatomy and spatial relationships.
 
 The project uses real OpenPose data as the geometry source of truth. Ollama or another LLM should describe pose intent, not generate raw keypoints.
 
@@ -11,9 +11,9 @@ The project uses real OpenPose data as the geometry source of truth. Ollama or a
 ```text
 User prompt
 -> Ollama scene/person extraction
--> PAL Ollama Pose Parser
--> PAL Pose From Structure
--> PAL OpenPose Renderer
+-> OPM_Ollama Pose Parser
+-> OPM_Pose From Structure
+-> OPM_OpenPose Renderer
 -> ControlNet / Flux workflow
 ```
 
@@ -21,8 +21,8 @@ Manual workflows can skip Ollama:
 
 ```text
 Pose Browser ID
--> PAL Pose By ID
--> PAL OpenPose Renderer
+-> OPM_Pose By ID
+-> OPM_OpenPose Renderer
 -> ControlNet / Flux workflow
 ```
 

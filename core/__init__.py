@@ -1,2 +1,1 @@
-"""Core pose library utilities for PAL OpenPose Skeleton Generator."""
-
+"""Core pose library utilities for OpenPose Manager."""

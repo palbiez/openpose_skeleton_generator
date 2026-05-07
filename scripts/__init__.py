@@ -1,2 +1,1 @@
-"""Command-line helpers for PAL OpenPose Skeleton Generator."""
-
+"""Command-line helpers for OpenPose Manager."""

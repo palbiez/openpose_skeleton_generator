@@ -1,6 +1,6 @@
 # Ollama Pose Intent Schema
 
-`PAL Ollama Pose Parser` expects Ollama to return JSON. The JSON may be embedded in text; the parser extracts the first JSON object or array it finds.
+`OPM_Ollama Pose Parser` expects Ollama to return JSON. The JSON may be embedded in text; the parser extracts the first JSON object or array it finds.
 
 ## Recommended Output
 
@@ -107,7 +107,7 @@ The parser returns:
 }
 ```
 
-This output is intended for `PAL Pose From Structure`.
+This output is intended for `OPM_Pose From Structure`.
 
 ## Prompting Guidance
 
@@ -118,4 +118,3 @@ Extract pose intent for each person. Return JSON only.
 Use pose, subpose, variant, attributes, role, and position.
 Do not generate keypoints.
 ```
-
