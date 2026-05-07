@@ -46,9 +46,9 @@ ComfyUI/models/openpose/
 The scanner supports nested OpenPose folders such as:
 
 ```text
-openpose/kneeling/F/nsfw/all_fours/all_fours_030_depth.png
-openpose/kneeling/F/nsfw/all_fours/all_fours_030_bone_structure.png
-openpose/kneeling/F/nsfw/all_fours/all_fours_030_openpose.json
+openpose/standing/M/base/bed_mirror_selfie/bed_mirror_selfie_000_bone_structure.png
+openpose/standing/M/base/bed_mirror_selfie/bed_mirror_selfie_000_depth.png
+openpose/standing/M/base/bed_mirror_selfie/bed_mirror_selfie_000_openpose.json
 ```
 
 Preview images prefer `*_depth.png`. If no depth image exists, `*_bone_structure.png` is used.
@@ -94,7 +94,7 @@ http://127.0.0.1:8189
 Environment variables:
 
 ```bash
-OPENPOSE_MODELS_PATH=C:\Users\firew\Documents\ComfyUI\models\openpose
+OPENPOSE_MODELS_PATH=C:\Users\<user>\Documents\ComfyUI\models\openpose
 OPENPOSE_BROWSER_HOST=0.0.0.0
 OPENPOSE_BROWSER_PORT=8189
 OPENPOSE_BROWSER_AUTOSTART=1

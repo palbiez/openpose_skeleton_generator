@@ -780,23 +780,29 @@ class PoseRegistry:
         }
         return json.dumps(payload, indent=2, ensure_ascii=False)
     
-    def search(self, pose: Optional[str] = None, variant: Optional[str] = None, 
-               subpose: Optional[str] = None) -> List[int]:
+    def search(
+        self,
+        pose: Optional[str] = None,
+        gender: Optional[str] = None,
+        variant: Optional[str] = None,
+        subpose: Optional[str] = None,
+    ) -> List[int]:
         """
         Search for pose IDs matching criteria.
         
         Args:
             pose: Pose name (e.g., "standing", "lying", "kneeling")
+            gender: Gender folder token (e.g., "f", "m", "unknown")
             variant: Variant (e.g., "base", "nsfw")
             subpose: Subpose (e.g., "neutral", "prone", "supine")
         
         Returns:
             List of matching pose IDs
         """
-        debug_log(f"[DEBUG] search: Called with pose={pose}, variant={variant}, subpose={subpose}")
+        debug_log(f"[DEBUG] search: Called with pose={pose}, gender={gender}, variant={variant}, subpose={subpose}")
         debug_log(f"[DEBUG] search: Registry has {len(self.poses)} total poses")
         
-        if pose is None:
+        if pose is None and gender is None and variant is None and subpose is None:
             # Return all poses
             debug_log(f"[DEBUG] search: No pose filter, returning all {len(self.poses)} pose IDs")
             return [p["id"] for p in self.poses]
@@ -805,6 +811,8 @@ class PoseRegistry:
         results = []
         for pose_data in self.poses:
             if pose is not None and pose_data["pose"] != pose:
+                continue
+            if gender is not None and pose_data.get("gender") != gender:
                 continue
             if variant is not None and pose_data["variant"] != variant:
                 continue
@@ -815,20 +823,35 @@ class PoseRegistry:
         debug_log(f"[DEBUG] search: Found {len(results)} matching poses")
         return results
     
-    def get_available_variants(self, pose: str) -> List[str]:
+    def get_available_genders(self, pose: Optional[str] = None) -> List[str]:
+        """Get available gender tokens, optionally scoped to a pose."""
+        genders = set()
+        for pose_data in self.poses:
+            if pose and pose_data["pose"] != pose:
+                continue
+            genders.add(pose_data.get("gender") or "unknown")
+        return sorted(list(genders))
+
+    def get_available_variants(self, pose: str, gender: Optional[str] = None) -> List[str]:
         """Get available variants for a pose."""
         variants = set()
         for pose_data in self.poses:
-            if pose_data["pose"] == pose:
-                variants.add(pose_data["variant"])
+            if pose_data["pose"] != pose:
+                continue
+            if gender and pose_data.get("gender") != gender:
+                continue
+            variants.add(pose_data["variant"])
         return sorted(list(variants))
     
-    def get_available_subposes(self, pose: str, variant: str) -> List[str]:
+    def get_available_subposes(self, pose: str, variant: str, gender: Optional[str] = None) -> List[str]:
         """Get available subposes for a pose/variant combination."""
         subposes = set()
         for pose_data in self.poses:
-            if pose_data["pose"] == pose and pose_data["variant"] == variant:
-                subposes.add(pose_data["subpose"])
+            if pose_data["pose"] != pose or pose_data["variant"] != variant:
+                continue
+            if gender and pose_data.get("gender") != gender:
+                continue
+            subposes.add(pose_data["subpose"])
         return sorted(list(subposes))
     
     def get_all_poses(self) -> List[str]:
