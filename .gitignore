@@ -23,6 +23,7 @@ debug_log.txt
 codex_context.txt
 web/pose_thumbnails/
 WIP_extractor_keys/
+zusätzliche_posen.txt
 
 # Large local datasets and exported archives
 *.zip
